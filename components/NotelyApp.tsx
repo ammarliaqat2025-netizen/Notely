@@ -27,7 +27,7 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
 }
 
-function fmtFullDateTime(iso: string) {
+function fmtFull(iso: string) {
   return new Date(iso).toLocaleString([], {
     weekday: 'short', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit', hour12: true
@@ -45,10 +45,7 @@ export default function NotelyApp() {
   const [user, setUser] = useState<User | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [titleVal, setTitleVal] = useState('')
-  const [bodyVal, setBodyVal] = useState('')
   const [startedAt, setStartedAt] = useState<string | null>(null)
-  const [hasTyped, setHasTyped] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved')
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [showModal, setShowModal] = useState(false)
@@ -58,9 +55,22 @@ export default function NotelyApp() {
   const [authLoading, setAuthLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [mobileView, setMobileView] = useState<'list' | 'editor'>('list')
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const bodyRef = useRef<HTMLTextAreaElement>(null)
+  const [wordCount, setWordCount] = useState(0)
+
+  // Uncontrolled refs — NO state for textarea values = no keyboard jump
   const titleRef = useRef<HTMLTextAreaElement>(null)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startedAtRef = useRef<string | null>(null)
+  const activeIdRef = useRef<string | null>(null)
+  const userRef = useRef<User | null>(null)
+  const notesRef = useRef<Note[]>([])
+
+  // Keep refs in sync
+  useEffect(() => { activeIdRef.current = activeId }, [activeId])
+  useEffect(() => { userRef.current = user }, [user])
+  useEffect(() => { notesRef.current = notes }, [notes])
+  useEffect(() => { startedAtRef.current = startedAt }, [startedAt])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user))
@@ -76,9 +86,17 @@ export default function NotelyApp() {
       const gn = loadGuest()
       setNotes(gn)
       if (gn.length > 0) openNote(gn[0])
-      else { setActiveId(null); setTitleVal(''); setBodyVal(''); setStartedAt(null); setHasTyped(false) }
+      else clearEditor()
     }
   }, [user])
+
+  function clearEditor() {
+    setActiveId(null)
+    setStartedAt(null)
+    if (titleRef.current) titleRef.current.value = ''
+    if (bodyRef.current) bodyRef.current.value = ''
+    setWordCount(0)
+  }
 
   async function fetchCloud() {
     const res = await fetch('/api/notes')
@@ -86,23 +104,29 @@ export default function NotelyApp() {
     const data: Note[] = await res.json()
     setNotes(data)
     if (data.length > 0) openNote(data[0])
-    else { setActiveId(null); setTitleVal(''); setBodyVal(''); setStartedAt(null); setHasTyped(false) }
+    else clearEditor()
   }
 
   function openNote(note: Note) {
     setActiveId(note.id)
-    setTitleVal(note.title)
-    setBodyVal(note.body)
     setStartedAt(note.started_at || null)
-    setHasTyped(false)
     setSaveStatus('saved')
     setSidebarOpen(false)
     setMobileView('editor')
+    // Set textarea values directly — no state = no re-render = no keyboard jump
+    requestAnimationFrame(() => {
+      if (titleRef.current) titleRef.current.value = note.title
+      if (bodyRef.current) {
+        bodyRef.current.value = note.body
+        const words = note.body.trim() ? note.body.trim().split(/\s+/).length : 0
+        setWordCount(words)
+      }
+    })
   }
 
   async function newNote() {
     const now = new Date().toISOString()
-    if (user) {
+    if (userRef.current) {
       const res = await fetch('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -112,78 +136,83 @@ export default function NotelyApp() {
       const note: Note = await res.json()
       setNotes(prev => [note, ...prev])
       openNote(note)
-      setTimeout(() => titleRef.current?.focus(), 50)
+      setTimeout(() => titleRef.current?.focus(), 80)
     } else {
       const note: Note = {
         id: Date.now().toString(), title: '', body: '',
         created_at: now, updated_at: now, started_at: now
       }
-      const updated = [note, ...notes]
+      const updated = [note, ...notesRef.current]
       setNotes(updated)
       saveGuest(updated)
       openNote(note)
-      setTimeout(() => titleRef.current?.focus(), 50)
+      setTimeout(() => titleRef.current?.focus(), 80)
     }
   }
 
-  const scheduleSave = useCallback((title: string, body: string, sa: string | null) => {
+  const doSave = useCallback(async () => {
+    const id = activeIdRef.current
+    if (!id) return
+    const title = titleRef.current?.value || ''
+    const body = bodyRef.current?.value || ''
+    const sa = startedAtRef.current
+    const now = new Date().toISOString()
+
+    if (userRef.current) {
+      await fetch(`/api/notes/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, body, started_at: sa })
+      })
+    }
+    // Update notes list preview
+    setNotes(prev => {
+      const updated = prev.map(n =>
+        n.id === id ? { ...n, title, body, started_at: sa ?? undefined, updated_at: now } : n
+      )
+      if (!userRef.current) saveGuest(updated)
+      return updated
+    })
+    setSaveStatus('saved')
+  }, [])
+
+  function scheduleSave() {
     setSaveStatus('saving')
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(async () => {
-      if (!activeId) return
-      const now = new Date().toISOString()
-      if (user) {
-        await fetch(`/api/notes/${activeId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, body, started_at: sa })
-        })
-        setNotes(prev => prev.map(n =>
-          n.id === activeId ? { ...n, title, body, started_at: sa ?? undefined, updated_at: now } : n
-        ))
-      } else {
-        const updated = notes.map(n =>
-          n.id === activeId ? { ...n, title, body, started_at: sa ?? undefined, updated_at: now } : n
-        )
-        setNotes(updated)
-        saveGuest(updated)
-      }
-      setSaveStatus('saved')
-    }, 700)
-  }, [activeId, user, notes])
+    saveTimer.current = setTimeout(doSave, 800)
+  }
 
-  function onFirstKeyPress() {
-    if (!hasTyped && !startedAt) {
+  function onTitleInput() {
+    // Capture start time on first keystroke if not set
+    if (!startedAtRef.current) {
       const now = new Date().toISOString()
       setStartedAt(now)
-      setHasTyped(true)
-      return now
+      startedAtRef.current = now
     }
-    setHasTyped(true)
-    return startedAt
+    scheduleSave()
   }
 
-  function onTitleChange(v: string) {
-    const sa = onFirstKeyPress()
-    setTitleVal(v)
-    scheduleSave(v, bodyVal, sa ?? startedAt)
-  }
-
-  function onBodyChange(v: string) {
-    const sa = onFirstKeyPress()
-    setBodyVal(v)
-    scheduleSave(titleVal, v, sa ?? startedAt)
+  function onBodyInput() {
+    if (!startedAtRef.current) {
+      const now = new Date().toISOString()
+      setStartedAt(now)
+      startedAtRef.current = now
+    }
+    // Update word count without re-rendering textarea
+    const val = bodyRef.current?.value || ''
+    setWordCount(val.trim() ? val.trim().split(/\s+/).length : 0)
+    scheduleSave()
   }
 
   async function deleteNote(id: string, e: React.MouseEvent) {
     e.stopPropagation()
-    if (user) await fetch(`/api/notes/${id}`, { method: 'DELETE' })
-    const updated = notes.filter(n => n.id !== id)
-    if (!user) saveGuest(updated)
+    if (userRef.current) await fetch(`/api/notes/${id}`, { method: 'DELETE' })
+    const updated = notesRef.current.filter(n => n.id !== id)
+    if (!userRef.current) saveGuest(updated)
     setNotes(updated)
-    if (activeId === id) {
+    if (activeIdRef.current === id) {
       if (updated.length > 0) openNote(updated[0])
-      else { setActiveId(null); setTitleVal(''); setBodyVal(''); setStartedAt(null); setHasTyped(false); setMobileView('list') }
+      else { clearEditor(); setMobileView('list') }
     }
   }
 
@@ -207,21 +236,12 @@ export default function NotelyApp() {
     await supabase.auth.signOut()
     const gn = loadGuest()
     setNotes(gn)
-    setActiveId(null); setTitleVal(''); setBodyVal(''); setStartedAt(null); setHasTyped(false); setMobileView('list')
+    clearEditor()
+    setMobileView('list')
   }
 
-  const wordCount = bodyVal.trim() ? bodyVal.trim().split(/\s+/).length : 0
   const activeNote = notes.find(n => n.id === activeId)
-
-  const TimestampBadge = () => {
-    const ts = startedAt || activeNote?.started_at
-    if (!ts) return null
-    return (
-      <div className="note-timestamp">
-        ⏱ Started at {fmtTime(ts)} &nbsp;·&nbsp; {fmtFullDateTime(ts)}
-      </div>
-    )
-  }
+  const ts = startedAt || activeNote?.started_at
 
   const NotesList = ({ className }: { className?: string }) => (
     <div className={className}>
@@ -247,10 +267,10 @@ export default function NotelyApp() {
   )
 
   const EditorContent = () => (
-    activeNote ? (
+    activeId ? (
       <div className="editor-wrap">
         <div className="toolbar">
-          <button className="tool-btn" title="Delete note" onClick={e => deleteNote(activeId!, e)}>
+          <button className="tool-btn" title="Delete note" onClick={e => deleteNote(activeId, e)}>
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M2 3.5h9M5 3.5V2.5h3v1M5.5 6v4M7.5 6v4M3 3.5l.7 7h5.6l.7-7"
                 stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
@@ -259,14 +279,24 @@ export default function NotelyApp() {
           <span className="word-count">{wordCount} word{wordCount !== 1 ? 's' : ''}</span>
           <span className={`save-status ${saveStatus}`}>{saveStatus === 'saved' ? '● saved' : '○ saving…'}</span>
         </div>
-        <TimestampBadge />
-        <textarea ref={titleRef} className="note-title" placeholder="Untitled" value={titleVal}
-          onChange={e => onTitleChange(e.target.value)}
+        {ts && (
+          <div className="note-timestamp">
+            ⏱ {fmtTime(ts)} &nbsp;·&nbsp; {fmtFull(ts)}
+          </div>
+        )}
+        <textarea
+          ref={titleRef}
+          className="note-title"
+          placeholder="Untitled"
+          onInput={onTitleInput}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); bodyRef.current?.focus() } }}
           rows={1}
         />
-        <textarea ref={bodyRef} className="note-body" placeholder="Start writing…" value={bodyVal}
-          onChange={e => onBodyChange(e.target.value)}
+        <textarea
+          ref={bodyRef}
+          className="note-body"
+          placeholder="Start writing…"
+          onInput={onBodyInput}
         />
       </div>
     ) : (
@@ -282,19 +312,19 @@ export default function NotelyApp() {
 
   return (
     <>
-      {/* ── MOBILE HEADER ── */}
+      {/* MOBILE HEADER */}
       <div className="mobile-header">
         {mobileView === 'list' ? (
           <>
             <div className="mobile-header-brand">Notely<span>.</span></div>
             <div style={{ display: 'flex', gap: 2 }}>
-              <button className="mobile-btn" onClick={() => setShowModal(true)} title="Account">
+              <button className="mobile-btn" onClick={() => setShowModal(true)}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                   <circle cx="10" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.4"/>
                   <path d="M3 17c0-3.866 3.134-7 7-7s7 3.134 7 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
                 </svg>
               </button>
-              <button className="mobile-btn" onClick={newNote} title="New note">
+              <button className="mobile-btn" onClick={newNote}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                   <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
                 </svg>
@@ -303,7 +333,7 @@ export default function NotelyApp() {
           </>
         ) : (
           <>
-            <button className="mobile-back-btn" onClick={() => setMobileView('list')}>
+            <button className="mobile-back-btn" onClick={() => { if (saveTimer.current) { clearTimeout(saveTimer.current); doSave() } setMobileView('list') }}>
               <svg width="17" height="17" viewBox="0 0 17 17" fill="none">
                 <path d="M11 3.5L6 8.5l5 5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
@@ -327,10 +357,8 @@ export default function NotelyApp() {
       </div>
 
       <div className="app">
-        {/* Backdrop */}
         <div className={`sidebar-backdrop ${sidebarOpen ? 'visible' : ''}`} onClick={() => setSidebarOpen(false)} />
 
-        {/* ── SIDEBAR ── */}
         <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
           <div className="sidebar-header">
             <div className="brand">Notely<span className="brand-dot">.</span></div>
@@ -357,26 +385,13 @@ export default function NotelyApp() {
           </div>
         </aside>
 
-        {/* ── EDITOR AREA ── */}
         <main className="editor-area">
-          {/* Mobile list view */}
-          {mobileView === 'list' && (
-            <NotesList className="mobile-notes-panel" />
-          )}
-          {/* Mobile editor view */}
-          {mobileView === 'editor' && (
-            <div className="mobile-editor">
-              <EditorContent />
-            </div>
-          )}
-          {/* Desktop editor — always visible */}
-          <div className="desktop-editor">
-            <EditorContent />
-          </div>
+          {mobileView === 'list' && <NotesList className="mobile-notes-panel" />}
+          {mobileView === 'editor' && <div className="mobile-editor"><EditorContent /></div>}
+          <div className="desktop-editor"><EditorContent /></div>
         </main>
       </div>
 
-      {/* ── AUTH MODAL ── */}
       {showModal && (
         <div className="overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -391,12 +406,14 @@ export default function NotelyApp() {
             </div>
             <div className="field">
               <label>EMAIL</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com" autoComplete="email" />
             </div>
             <div className="field">
               <label>PASSWORD</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••" autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
+                placeholder="••••••••"
+                autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
                 onKeyDown={e => e.key === 'Enter' && handleAuth()} />
             </div>
             {authError && <div className="auth-error">{authError}</div>}
