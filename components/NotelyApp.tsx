@@ -356,25 +356,32 @@ export default function NotelyApp() {
 async function handleSummarize() {
   if (!body.trim()) return
   setAiStatus('✦ Summarizing…')
+
   try {
-    const res = await fetch('/api/summarize', {
+    const response = await fetch('/api/summarize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, body })
     })
-    const data = await res.json()
-    const summary = data.summary || 'Could not generate summary.'
 
-    // ── PREPEND summary to note body ──
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed')
+    }
+
+    const summary = data.summary || 'Could not generate summary.'
     const divider = '\n\n─── AI Summary ───\n'
-    const newBody = divider + summary + '\n\n' + body
+    const newBody = body + divider + summary
 
     setBody(newBody)
     setWordCount(newBody.trim().split(/\s+/).length)
     scheduleSave(title, newBody, startedAt)
-    setAiStatus('✦ Summary added at the top of your note')
+
+    setAiStatus('✦ Summary added below your note')
     setTimeout(() => setAiStatus(''), 3000)
-  } catch {
+  } catch (err) {
+    console.error(err)
     setAiStatus('✦ Could not connect to AI. Try again.')
     setTimeout(() => setAiStatus(''), 3000)
   }
