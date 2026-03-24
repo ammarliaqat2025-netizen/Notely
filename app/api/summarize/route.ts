@@ -15,7 +15,7 @@ export async function POST(request: Request) {
         'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant', // ✅ FIXED MODEL
+        model: 'llama-3.1-8b-instant',
         messages: [
           {
             role: 'user',
@@ -34,9 +34,7 @@ export async function POST(request: Request) {
     }
 
     const summary = data.choices?.[0]?.message?.content || 'Could not generate summary.'
-
     return NextResponse.json({ summary })
-
   } catch (err: any) {
     console.error('Server error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
