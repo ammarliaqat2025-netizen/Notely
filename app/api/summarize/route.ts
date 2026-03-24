@@ -14,7 +14,7 @@ export async function POST(request: Request) {
         'Authorization': `Bearer ${process.env.GROQ_API_KEY!}`
       },
       body: JSON.stringify({
-        model: 'llama3-70b-8192',   // Groq’s LLaMA‑3 model
+        model: process.env.GROQ_MODEL || 'llama3-8b-8192',
         messages: [
           {
             role: 'user',
