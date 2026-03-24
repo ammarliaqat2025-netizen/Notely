@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
   const { title, body } = await request.json()
+
   if (!body?.trim()) {
     return NextResponse.json({ error: 'No content' }, { status: 400 })
   }
@@ -11,30 +12,33 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY!}`
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        model: process.env.GROQ_MODEL || 'llama-3.1-8b-instruct',
-        
+        model: 'llama-3.1-8b-instant', // ✅ FIXED MODEL
         messages: [
           {
             role: 'user',
-            content: `Summarize this note in 2-3 clear sentences. Capture key points only. No preamble, just the summary.\n\nTitle: ${title}\n\nContent:\n${body}`
+            content: `Summarize this note in 2-3 clear sentences. Capture key points only. No preamble.\n\nTitle: ${title}\n\nContent:\n${body}`
           }
         ],
-        max_tokens: 300
+        max_tokens: 200
       })
     })
 
+    const data = await response.json()
+
     if (!response.ok) {
-      const errText = await response.text()
-      return NextResponse.json({ error: `Groq error: ${errText}` }, { status: response.status })
+      console.error('Groq error:', data)
+      return NextResponse.json({ error: 'Groq API failed' }, { status: 500 })
     }
 
-    const data = await response.json()
     const summary = data.choices?.[0]?.message?.content || 'Could not generate summary.'
+
     return NextResponse.json({ summary })
+
   } catch (err: any) {
-    return NextResponse.json({ error: `Request failed: ${err.message}` }, { status: 500 })
+    console.error('Server error:', err)
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
