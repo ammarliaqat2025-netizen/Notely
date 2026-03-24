@@ -15,6 +15,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model: process.env.GROQ_MODEL || 'llama-3.1-8b-instruct',
+        
         messages: [
           {
             role: 'user',
