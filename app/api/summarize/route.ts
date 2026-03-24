@@ -7,14 +7,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY!}`
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY!}`
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: 'llama3-70b-8192',   // Groq’s LLaMA‑3 model
         messages: [
           {
             role: 'user',
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const errText = await response.text()
-      return NextResponse.json({ error: `DeepSeek error: ${errText}` }, { status: response.status })
+      return NextResponse.json({ error: `Groq error: ${errText}` }, { status: response.status })
     }
 
     const data = await response.json()
