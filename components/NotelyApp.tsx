@@ -12,6 +12,7 @@ interface Note {
   created_at: string
   updated_at: string
   started_at?: string
+  synced?: boolean
 }
 
 function fmtDate(iso: string) {
@@ -40,7 +41,19 @@ function loadGuest(): Note[] {
 }
 function saveGuest(n: Note[]) { localStorage.setItem(GUEST_KEY, JSON.stringify(n)) }
 
-// ── THESE ARE DEFINED OUTSIDE THE COMPONENT so they never get recreated ──
+function exportTxt(title: string, body: string, startedAt: string | null) {
+  const ts = startedAt ? `Started: ${fmtFull(startedAt)}\n\n` : ''
+  const content = `${title || 'Untitled'}\n${'─'.repeat(40)}\n${ts}${body}`
+  const blob = new Blob([content], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${(title || 'note').replace(/[^a-z0-9]/gi, '-').toLowerCase()}.txt`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// ── OUTSIDE COMPONENT — no re-creation on render ──
 
 interface NotesListProps {
   notes: Note[]
@@ -82,15 +95,22 @@ interface EditorProps {
   startedAt: string | null
   saveStatus: 'saved' | 'saving'
   wordCount: number
+  aiStatus: string
   onTitleChange: (v: string) => void
   onBodyChange: (v: string) => void
   onTitleKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
   onDelete: (id: string, e: React.MouseEvent) => void
+  onSummarize: () => void
+  onExport: () => void
   bodyRef: React.RefObject<HTMLTextAreaElement | null>
   titleRef: React.RefObject<HTMLTextAreaElement | null>
 }
 
-function Editor({ activeId, title, body, startedAt, saveStatus, wordCount, onTitleChange, onBodyChange, onTitleKeyDown, onDelete, bodyRef, titleRef }: EditorProps) {
+function Editor({
+  activeId, title, body, startedAt, saveStatus, wordCount, aiStatus,
+  onTitleChange, onBodyChange, onTitleKeyDown, onDelete,
+  onSummarize, onExport, bodyRef, titleRef
+}: EditorProps) {
   if (!activeId) {
     return (
       <div className="empty-editor">
@@ -111,9 +131,27 @@ function Editor({ activeId, title, body, startedAt, saveStatus, wordCount, onTit
               stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
-        <span className="word-count">{wordCount} word{wordCount !== 1 ? 's' : ''}</span>
+        <div className="tool-sep" />
+        <button className="tool-btn ai-btn" title="Summarize with AI" onClick={onSummarize} disabled={!body.trim()}>
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <path d="M6.5 1.5l1 2.5h2.5l-2 1.5.8 2.5-2.3-1.5-2.3 1.5.8-2.5-2-1.5H5.5z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
+            <path d="M2 10h9M3.5 12h6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          </svg>
+          Summarize
+        </button>
+        <button className="tool-btn ai-btn" title="Export as .txt" onClick={onExport}>
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <path d="M8 1.5H4a1 1 0 00-1 1v8a1 1 0 001 1h5a1 1 0 001-1V4.5L8 1.5z" stroke="currentColor" strokeWidth="1.1"/>
+            <path d="M8 1.5V4.5H11M4.5 7h4M4.5 9h2.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
+          </svg>
+          Export
+        </button>
+        <span className="word-count">{wordCount}w</span>
         <span className={`save-status ${saveStatus}`}>{saveStatus === 'saved' ? '● saved' : '○ saving…'}</span>
       </div>
+      {aiStatus && (
+        <div className="ai-status-bar">{aiStatus}</div>
+      )}
       {startedAt && (
         <div className="note-timestamp">⏱ {fmtTime(startedAt)} · {fmtFull(startedAt)}</div>
       )}
@@ -149,6 +187,7 @@ export default function NotelyApp() {
   const [startedAt, setStartedAt] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved')
   const [wordCount, setWordCount] = useState(0)
+  const [aiStatus, setAiStatus] = useState('')
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [showModal, setShowModal] = useState(false)
   const [email, setEmail] = useState('')
@@ -161,8 +200,6 @@ export default function NotelyApp() {
   const bodyRef = useRef<HTMLTextAreaElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Stable refs to avoid stale closures in save
   const activeIdRef = useRef<string | null>(null)
   const userRef = useRef<User | null>(null)
   const startedAtRef = useRef<string | null>(null)
@@ -192,7 +229,7 @@ export default function NotelyApp() {
   }, [user])
 
   function clearEditor() {
-    setActiveId(null); setTitle(''); setBody(''); setStartedAt(null); setWordCount(0)
+    setActiveId(null); setTitle(''); setBody(''); setStartedAt(null); setWordCount(0); setAiStatus('')
   }
 
   async function fetchCloud() {
@@ -211,15 +248,55 @@ export default function NotelyApp() {
     setStartedAt(note.started_at || null)
     setWordCount(note.body.trim() ? note.body.trim().split(/\s+/).length : 0)
     setSaveStatus('saved')
+    setAiStatus('')
     setSidebarOpen(false)
     setMobileView('editor')
+  }
+
+  // ── INSTANT NEW NOTE ──
+  async function newNote() {
+    const now = new Date().toISOString()
+    const tempId = `temp-${Date.now()}`
+
+    // 1. Create locally and show INSTANTLY
+    const tempNote: Note = {
+      id: tempId, title: '', body: '',
+      created_at: now, updated_at: now, started_at: now, synced: false
+    }
+    const updatedNotes = [tempNote, ...notesRef.current]
+    setNotes(updatedNotes)
+    openNote(tempNote)
+    if (!userRef.current) saveGuest(updatedNotes)
+    setTimeout(() => titleRef.current?.focus(), 50)
+
+    // 2. If logged in, sync to cloud in background
+    if (userRef.current) {
+      try {
+        const res = await fetch('/api/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: '', body: '', started_at: now })
+        })
+        if (res.ok) {
+          const cloudNote: Note = await res.json()
+          // Replace temp note with real cloud note
+          setNotes(prev => prev.map(n => n.id === tempId ? { ...cloudNote, synced: true } : n))
+          // Update activeId to real cloud id
+          setActiveId(cloudNote.id)
+          activeIdRef.current = cloudNote.id
+        }
+      } catch (e) {
+        // Keep temp note if network fails, will retry on next save
+      }
+    }
   }
 
   const doSave = useCallback(async (t: string, b: string, sa: string | null) => {
     const id = activeIdRef.current
     if (!id) return
     const now = new Date().toISOString()
-    if (userRef.current) {
+
+    if (userRef.current && !id.startsWith('temp-')) {
       await fetch(`/api/notes/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -261,35 +338,11 @@ export default function NotelyApp() {
     if (e.key === 'Enter') { e.preventDefault(); bodyRef.current?.focus() }
   }, [])
 
-  async function newNote() {
-    const now = new Date().toISOString()
-    if (userRef.current) {
-      const res = await fetch('/api/notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: '', body: '', started_at: now })
-      })
-      if (!res.ok) return
-      const note: Note = await res.json()
-      setNotes(prev => [note, ...prev])
-      openNote(note)
-      setTimeout(() => titleRef.current?.focus(), 80)
-    } else {
-      const note: Note = {
-        id: Date.now().toString(), title: '', body: '',
-        created_at: now, updated_at: now, started_at: now
-      }
-      const updated = [note, ...notesRef.current]
-      setNotes(updated)
-      saveGuest(updated)
-      openNote(note)
-      setTimeout(() => titleRef.current?.focus(), 80)
-    }
-  }
-
   const handleDelete = useCallback(async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (userRef.current) await fetch(`/api/notes/${id}`, { method: 'DELETE' })
+    if (userRef.current && !id.startsWith('temp-')) {
+      await fetch(`/api/notes/${id}`, { method: 'DELETE' })
+    }
     const updated = notesRef.current.filter(n => n.id !== id)
     if (!userRef.current) saveGuest(updated)
     setNotes(updated)
@@ -298,6 +351,43 @@ export default function NotelyApp() {
       else { clearEditor(); setMobileView('list') }
     }
   }, [])
+
+  // ── AI SUMMARIZE ──
+  async function handleSummarize() {
+    if (!body.trim()) return
+    setAiStatus('✦ Summarizing…')
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: `Summarize this note in 2-3 clear sentences. Be concise and capture the key points only. Do not add any preamble, just the summary.\n\nNote title: ${title}\n\nNote content:\n${body}`
+          }]
+        })
+      })
+      const data = await response.json()
+      const summary = data.content?.[0]?.text || 'Could not generate summary.'
+      const divider = '\n\n─── AI Summary ───\n'
+      const newBody = body + divider + summary
+      setBody(newBody)
+      setWordCount(newBody.trim().split(/\s+/).length)
+      scheduleSave(title, newBody, startedAt)
+      setAiStatus('✦ Summary added below your note')
+      setTimeout(() => setAiStatus(''), 3000)
+    } catch {
+      setAiStatus('✦ Could not connect to AI. Try again.')
+      setTimeout(() => setAiStatus(''), 3000)
+    }
+  }
+
+  // ── EXPORT ──
+  function handleExport() {
+    exportTxt(title, body, startedAt)
+  }
 
   async function handleAuth() {
     setAuthError(''); setAuthLoading(true)
@@ -323,7 +413,6 @@ export default function NotelyApp() {
 
   return (
     <>
-      {/* MOBILE HEADER */}
       <div className="mobile-header">
         {mobileView === 'list' ? (
           <>
@@ -407,9 +496,10 @@ export default function NotelyApp() {
             <div className="mobile-editor">
               <Editor
                 activeId={activeId} title={title} body={body}
-                startedAt={startedAt} saveStatus={saveStatus} wordCount={wordCount}
+                startedAt={startedAt} saveStatus={saveStatus} wordCount={wordCount} aiStatus={aiStatus}
                 onTitleChange={onTitleChange} onBodyChange={onBodyChange}
                 onTitleKeyDown={onTitleKeyDown} onDelete={handleDelete}
+                onSummarize={handleSummarize} onExport={handleExport}
                 bodyRef={bodyRef} titleRef={titleRef}
               />
             </div>
@@ -417,9 +507,10 @@ export default function NotelyApp() {
           <div className="desktop-editor">
             <Editor
               activeId={activeId} title={title} body={body}
-              startedAt={startedAt} saveStatus={saveStatus} wordCount={wordCount}
+              startedAt={startedAt} saveStatus={saveStatus} wordCount={wordCount} aiStatus={aiStatus}
               onTitleChange={onTitleChange} onBodyChange={onBodyChange}
               onTitleKeyDown={onTitleKeyDown} onDelete={handleDelete}
+              onSummarize={handleSummarize} onExport={handleExport}
               bodyRef={bodyRef} titleRef={titleRef}
             />
           </div>
