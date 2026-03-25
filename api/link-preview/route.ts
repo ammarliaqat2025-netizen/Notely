@@ -1,29 +1,27 @@
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import fetch from 'node-fetch';
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
-  const { url } = await req.json();
-
-  if (!url) {
-    return NextResponse.json({ error: 'URL is required' }, { status: 400 });
-  }
+  const { url } = await req.json()
 
   try {
-    const res = await fetch(url);
-    const html = await res.text();
+    const res = await fetch(url) // ✅ built-in fetch
+    const html = await res.text()
 
-    // Simple regex parsing for <title> and meta description
-    const titleMatch = html.match(/<title>(.*?)<\/title>/);
+    const titleMatch = html.match(/<title>(.*?)<\/title>/i)
     const descMatch = html.match(
-      /<meta\s+name=["']description["']\s+content=["'](.*?)["']/
-    );
-    
-    const title = titleMatch ? titleMatch[1] : '';
-    const description = descMatch ? descMatch[1] : '';
+      /<meta name="description" content="(.*?)"/i
+    )
 
-    return NextResponse.json({ title, description });
-  } catch (err) {
-    return NextResponse.json({ error: 'Failed to fetch URL' }, { status: 500 });
+    return NextResponse.json({
+      title: titleMatch?.[1] || '',
+      description: descMatch?.[1] || ''
+    })
+
+  } catch {
+    return NextResponse.json({
+      title: '',
+      description: ''
+    })
   }
 }
