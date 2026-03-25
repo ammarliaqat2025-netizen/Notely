@@ -260,3 +260,11 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
     min-width: 80px;
   }
 }
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
