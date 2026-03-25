@@ -47,7 +47,7 @@ function NotesList({ notes, activeId, onOpen, onDelete, className }: any) {
   )
 }
 
-function Editor({ activeId, title, body, startedAt, saveStatus, wordCount, aiStatus, onTitleChange, onBodyChange, onDelete, onSummarize, onExport, bodyRef, titleRef, linkPreviews, isLinkLoading, onExtract }: any) {
+function Editor({ activeId, title, body, saveStatus, wordCount, aiStatus, onTitleChange, onBodyChange, onDelete, onSummarize, onExport, bodyRef, titleRef, linkPreviews, isLinkLoading, onExtract }: any) {
   if (!activeId) return <div className="empty-editor"><p>Select a note or create one</p></div>
 
   return (
@@ -68,7 +68,7 @@ function Editor({ activeId, title, body, startedAt, saveStatus, wordCount, aiSta
       <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {isLinkLoading && <div style={{ fontSize: '12px', color: '#888' }}>Checking links...</div>}
         {linkPreviews.map((lp: any, idx: number) => (
-          <div key={idx} style={{ display: 'flex', maxWidth: '500px', border: '1px solid #e5dfd0', borderRadius: '8px', backgroundColor: '#fff', overflow: 'hidden' }}>
+          <div key={lp.url || idx} style={{ display: 'flex', maxWidth: '500px', border: '1px solid #e5dfd0', borderRadius: '8px', backgroundColor: '#fff', overflow: 'hidden' }}>
             <div style={{ flex: 1, padding: '12px', minWidth: 0 }}>
               <div style={{ fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#000' }}>{lp.title}</div>
               <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px' }}>{lp.domain}</div>
@@ -97,7 +97,7 @@ export default function NotelyApp() {
   const [password, setPassword] = useState('');
   const [mobileView, setMobileView] = useState<'list' | 'editor'>('list');
   
-  // SUPPORT FOR MULTIPLE PREVIEWS
+  // FIX: Added explicit type to prevent 'never' error
   const [linkPreviews, setLinkPreviews] = useState<any[]>([]);
   const [isLinkLoading, setIsLinkLoading] = useState(false);
 
@@ -153,12 +153,11 @@ export default function NotelyApp() {
     // MULTI-LINK DETECTION
     const matches = v.match(/(https?:\/\/[^\s]+)/g) || [];
     
-    // 1. Remove previews for links no longer in text
-    setLinkPreviews(prev => prev.filter(lp => matches.includes(lp.url)));
+    // FIX: Typed the filter logic to satisfy TypeScript
+    setLinkPreviews((prev: any[]) => prev.filter((lp: any) => matches.includes(lp.url)));
 
-    // 2. Fetch new links only
     matches.forEach(url => {
-        const alreadyFetched = linkPreviews.find(lp => lp.url === url);
+        const alreadyFetched = linkPreviews.find((lp: any) => lp.url === url);
         if (!alreadyFetched) fetchPreview(url);
     });
   }
@@ -169,8 +168,8 @@ export default function NotelyApp() {
       const res = await fetch('/api/link-preview', { method: 'POST', body: JSON.stringify({ url }) });
       const data = await res.json(); 
       if (data.title) {
-        setLinkPreviews(prev => {
-            if (prev.find(lp => lp.url === url)) return prev; // Prevent duplicates
+        setLinkPreviews((prev: any[]) => {
+            if (prev.find((lp: any) => lp.url === url)) return prev;
             return [...prev, data];
         });
       }
@@ -185,7 +184,7 @@ export default function NotelyApp() {
       if (!res.ok) { alert(data.error); setAiStatus(''); return; }
       const newBody = body + `\n\n--- Content from ${data.domain} ---\n` + data.fullContent;
       setBody(newBody); scheduleSave(title, newBody);
-      setLinkPreviews(prev => prev.filter(p => p.url !== lp.url));
+      setLinkPreviews((prev: any[]) => prev.filter((p: any) => p.url !== lp.url));
       setAiStatus('');
     } catch { setAiStatus(''); }
   }
@@ -227,8 +226,8 @@ export default function NotelyApp() {
         )}
       </div>
       <div className="app">
-        <aside className="sidebar">
-          <div className="sidebar-header"><div className="brand">Notely.</div><button className="new-btn" onClick={newNote}>New note</button></div>
+        <aside className={`sidebar ${mobileView === 'list' ? 'open' : ''}`}>
+          <div className="sidebar-header">Notely. <button onClick={newNote}>New</button></div>
           <NotesList notes={notes} activeId={activeId} onOpen={openNote} onDelete={handleDelete} className="notes-list" />
           <div className="sidebar-footer">
             {user ? <button className="auth-btn" onClick={() => supabase.auth.signOut()}>sign out</button> : <button className="auth-btn" onClick={() => setShowModal(true)}>sign in</button>}
