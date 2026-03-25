@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import type { User } from '@supabase/supabase-js'
 
-// --- TypeScript Rules ---
+// --- TypeScript Rules (Strictly Defined) ---
 interface Note {
   id: string; 
   user_id?: string; 
@@ -24,34 +24,51 @@ interface PreviewData {
   fullContent?: string;
 }
 
+interface EditorProps {
+  activeId: string | null;
+  title: string;
+  body: string;
+  saveStatus: 'saved' | 'saving';
+  wordCount: number;
+  aiStatus: string;
+  onTitleChange: (v: string) => void;
+  onBodyChange: (v: string) => void;
+  onDelete: (id: string, e: any) => void;
+  onSummarize: () => void;
+  onExport: () => void;
+  bodyRef: React.RefObject<HTMLTextAreaElement | null>;
+  titleRef: React.RefObject<HTMLTextAreaElement | null>;
+  linkPreviews: PreviewData[];
+  isLinkLoading: boolean;
+  onExtract: (lp: PreviewData) => void;
+}
+
 // --- Formatters ---
 function fmtDate(iso: string) {
-  const d = new Date(iso); const diff = Date.now() - d.getTime();
+  const d = new Date(iso); 
+  const diff = Date.now() - d.getTime();
   if (diff < 60000) return 'just now';
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
-function fmtTime(iso: string) { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }); }
-function fmtFull(iso: string) { return new Date(iso).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }); }
 
-const GUEST_KEY = 'notely_notes';
-function loadGuest(): Note[] { try { return JSON.parse(localStorage.getItem(GUEST_KEY) || '[]') } catch { return [] } }
-function saveGuest(n: Note[]) { localStorage.setItem(GUEST_KEY, JSON.stringify(n)) }
-
-function exportTxt(title: string, body: string, startedAt: string | null) {
-  const ts = startedAt ? `Started: ${fmtFull(startedAt)}\n\n` : '';
-  const content = `${title || 'Untitled'}\n${'─'.repeat(40)}\n${ts}${body}`;
+function exportTxt(title: string, body: string) {
+  const content = `${title || 'Untitled'}\n${'─'.repeat(40)}\n${body}`;
   const blob = new Blob([content], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `${(title || 'note').replace(/[^a-z0-9]/gi, '-').toLowerCase()}.txt`; a.click(); URL.revokeObjectURL(url);
+  const a = document.createElement('a'); 
+  a.href = url; 
+  a.download = `${(title || 'note').replace(/[^a-z0-9]/gi, '-').toLowerCase()}.txt`; 
+  a.click(); 
+  URL.revokeObjectURL(url);
 }
 
-// --- Components ---
+// --- Sub-Components ---
 function NotesList({ notes, activeId, onOpen, onDelete, className }: any) {
   return (
     <div className={className}>
-      {notes.length === 0 ? <div className="empty-list">No notes yet.</div> : notes.map((n: any) => (
+      {notes.length === 0 ? <div className="empty-list">No notes yet.</div> : notes.map((n: Note) => (
           <div key={n.id} className={`note-item ${n.id === activeId ? 'active' : ''}`} onClick={() => onOpen(n)}>
             <div className="note-item-title">{n.title || 'Untitled'}</div>
             <div className="note-item-preview">{n.body.slice(0, 60) || '—'}</div>
@@ -63,7 +80,7 @@ function NotesList({ notes, activeId, onOpen, onDelete, className }: any) {
   )
 }
 
-function Editor({ activeId, title, body, saveStatus, wordCount, aiStatus, onTitleChange, onBodyChange, onDelete, onSummarize, onExport, bodyRef, titleRef, linkPreviews, isLinkLoading, onExtract }: any) {
+function Editor({ activeId, title, body, saveStatus, wordCount, aiStatus, onTitleChange, onBodyChange, onDelete, onSummarize, onExport, bodyRef, titleRef, linkPreviews, isLinkLoading, onExtract }: EditorProps) {
   if (!activeId) return <div className="empty-editor"><p>Select a note or create one</p></div>
 
   return (
@@ -82,12 +99,12 @@ function Editor({ activeId, title, body, saveStatus, wordCount, aiStatus, onTitl
 
       <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {isLinkLoading && <div style={{ fontSize: '12px', color: '#888' }}>Checking links...</div>}
-        {linkPreviews.map((lp: PreviewData, idx: number) => (
-          <div key={lp.url || idx} style={{ display: 'flex', maxWidth: '500px', border: '1px solid #e5dfd0', borderRadius: '8px', backgroundColor: '#fff', overflow: 'hidden' }}>
+        {linkPreviews.map((lp: PreviewData) => (
+          <div key={lp.url} style={{ display: 'flex', maxWidth: '500px', border: '1px solid #e5dfd0', borderRadius: '8px', backgroundColor: '#fff', overflow: 'hidden' }}>
             <div style={{ flex: 1, padding: '12px', minWidth: 0 }}>
               <div style={{ fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#000' }}>{lp.title}</div>
               <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px' }}>{lp.domain}</div>
-              <button onClick={() => onExtract(lp)} style={{ fontSize: '11px', padding: '5px 10px', backgroundColor: '#e5dfd0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Clip Page Text</button>
+              <button onClick={() => onExtract(lp)} style={{ fontSize: '11px', padding: '5px 10px', backgroundColor: '#e5dfd0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', color: '#4a4439' }}>Clip Page Text</button>
             </div>
             {lp.image && <div style={{ width: '100px', minWidth: '100px' }}><img src={lp.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /></div>}
           </div>
@@ -112,7 +129,6 @@ export default function NotelyApp() {
   const [password, setPassword] = useState('');
   const [mobileView, setMobileView] = useState<'list' | 'editor'>('list');
   
-  // FIX: Explicitly typed as PreviewData[] to satisfy TypeScript
   const [linkPreviews, setLinkPreviews] = useState<PreviewData[]>([]);
   const [isLinkLoading, setIsLinkLoading] = useState(false);
 
@@ -120,9 +136,8 @@ export default function NotelyApp() {
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const saveTimer = useRef<any>(null);
   const activeIdRef = useRef<string | null>(null);
-  const userRef = useRef<User | null>(null);
 
-  useEffect(() => { activeIdRef.current = activeId; userRef.current = user; }, [activeId, user])
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId])
   
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
@@ -131,10 +146,11 @@ export default function NotelyApp() {
   }, [supabase.auth])
 
   useEffect(() => {
+    const gn = JSON.parse(localStorage.getItem('notely_notes') || '[]');
     if (user) {
       fetch('/api/notes').then(res => res.json()).then(data => { setNotes(data); if (data.length > 0) openNote(data[0]); });
     } else {
-      const gn = loadGuest(); setNotes(gn); if (gn.length > 0) openNote(gn[0]);
+      setNotes(gn); if (gn.length > 0) openNote(gn[0]);
     }
   }, [user])
 
@@ -146,15 +162,16 @@ export default function NotelyApp() {
 
   const doSave = useCallback(async (t: string, b: string) => {
     const id = activeIdRef.current; if (!id) return;
-    if (userRef.current && !id.startsWith('temp-')) {
+    if (user && !id.startsWith('temp-')) {
       await fetch(`/api/notes/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: t, body: b }) });
     }
     setNotes(prev => {
       const updated = prev.map(n => n.id === id ? { ...n, title: t, body: b, updated_at: new Date().toISOString() } : n);
-      if (!userRef.current) saveGuest(updated); return updated;
+      if (!user) localStorage.setItem('notely_notes', JSON.stringify(updated));
+      return updated;
     });
     setSaveStatus('saved');
-  }, []);
+  }, [user]);
 
   function scheduleSave(t: string, b: string) {
     setSaveStatus('saving'); if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -165,9 +182,10 @@ export default function NotelyApp() {
     setBody(v); setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0);
     scheduleSave(title, v);
 
-    const matches = v.match(/(https?:\/\/[^\s]+)/g) || [];
+    const foundMatches = v.match(/(https?:\/\/[^\s]+)/g);
+    const matches: string[] = foundMatches ? Array.from(foundMatches) : [];
     
-    // FIX: Using functional update with explicit typing
+    // TYPED FIX: Ensure compiler knows we are comparing strings
     setLinkPreviews((prev: PreviewData[]) => prev.filter((lp: PreviewData) => matches.includes(lp.url)));
 
     matches.forEach(url => {
@@ -215,7 +233,7 @@ export default function NotelyApp() {
 
   async function newNote() {
     const now = new Date().toISOString(); const tempId = `temp-${Date.now()}`;
-    const tempNote = { id: tempId, title: '', body: '', created_at: now, updated_at: now, synced: false };
+    const tempNote: Note = { id: tempId, title: '', body: '', created_at: now, updated_at: now, synced: false };
     setNotes(prev => [tempNote, ...prev]); openNote(tempNote);
   }
 
@@ -229,17 +247,23 @@ export default function NotelyApp() {
     });
   };
 
+  const handleAuth = async () => {
+    if (authMode === 'signin') await supabase.auth.signInWithPassword({ email, password });
+    else await supabase.auth.signUp({ email, password });
+    setShowModal(false);
+  }
+
   return (
     <>
       <div className="mobile-header">
         {mobileView === 'list' ? (
-          <div className="mobile-header-brand">Notely. <button onClick={newNote}>+</button></div>
+          <div className="mobile-header-brand">Notely. <button onClick={newNote} className="mobile-btn">+</button></div>
         ) : (
-          <button onClick={() => setMobileView('list')}>← Back</button>
+          <button onClick={() => setMobileView('list')} className="mobile-back-btn">← Back</button>
         )}
       </div>
       <div className="app">
-        <aside className={`sidebar`}>
+        <aside className="sidebar">
           <div className="sidebar-header"><div className="brand">Notely.</div><button className="new-btn" onClick={newNote}>New note</button></div>
           <NotesList notes={notes} activeId={activeId} onOpen={openNote} onDelete={handleDelete} className="notes-list" />
           <div className="sidebar-footer">
@@ -248,10 +272,21 @@ export default function NotelyApp() {
         </aside>
         <main className="editor-area">
           {mobileView === 'list' ? <NotesList notes={notes} activeId={activeId} onOpen={openNote} onDelete={handleDelete} className="mobile-notes-panel" /> : (
-            <Editor activeId={activeId} title={title} body={body} saveStatus={saveStatus} wordCount={wordCount} aiStatus={aiStatus} onTitleChange={setTitle} onBodyChange={onBodyChange} onDelete={handleDelete} onSummarize={handleSummarize} onExport={() => exportTxt(title, body, null)} bodyRef={bodyRef} titleRef={titleRef} linkPreviews={linkPreviews} isLinkLoading={isLinkLoading} onExtract={handleExtract} />
+            <Editor activeId={activeId} title={title} body={body} saveStatus={saveStatus} wordCount={wordCount} aiStatus={aiStatus} onTitleChange={setTitle} onBodyChange={onBodyChange} onDelete={handleDelete} onSummarize={handleSummarize} onExport={() => exportTxt(title, body)} bodyRef={bodyRef} titleRef={titleRef} linkPreviews={linkPreviews} isLinkLoading={isLinkLoading} onExtract={handleExtract} />
           )}
         </main>
       </div>
+      {showModal && (
+        <div className="overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setAuthMode('signin')}>Sign in</button>
+            <button onClick={() => setAuthMode('signup')}>Sign up</button>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" />
+            <button onClick={handleAuth}>Go</button>
+          </div>
+        </div>
+      )}
     </>
   )
 }
