@@ -358,18 +358,16 @@ async function handleSummarize() {
   setAiStatus('✦ Summarizing…')
 
   try {
-    const res = await fetch('/api/summarize', {  // POST to your new API route
+    const response = await fetch('/api/summarize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, body })
     })
 
-    const data = await res.json()
+    const data = await response.json()
 
-    if (data.error) {
-      setAiStatus(`✦ ${data.error}`)
-      setTimeout(() => setAiStatus(''), 3000)
-      return
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed')
     }
 
     const summary = data.summary || 'Could not generate summary.'
@@ -379,6 +377,7 @@ async function handleSummarize() {
     setBody(newBody)
     setWordCount(newBody.trim().split(/\s+/).length)
     scheduleSave(title, newBody, startedAt)
+
     setAiStatus('✦ Summary added below your note')
     setTimeout(() => setAiStatus(''), 3000)
   } catch (err) {
