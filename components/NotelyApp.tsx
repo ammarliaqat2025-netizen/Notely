@@ -137,22 +137,22 @@ function Editor({
   }
 
   return (
-    <div className="editor-wrap" style={{ display: 'flex', flexDirection: 'row' }}>
-      <div className="editor-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+    <div className="editor-outer-wrap" style={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden' }}>
+      <div className="editor-main-column" style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', borderRight: aiSummary ? '1px solid #eee' : 'none' }}>
         <div className="toolbar">
-          <button className="tool-btn" onClick={e => onDelete(activeId, e)}>
+          <button className="tool-btn" title="Delete note" onClick={e => onDelete(activeId, e)}>
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M2 3.5h9M5 3.5V2.5h3v1M5.5 6v4M7.5 6v4M3 3.5l.7 7h5.6l.7-7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
           <div className="tool-sep" />
-          <button className="tool-btn ai-btn" onClick={onSummarize} disabled={!body.trim() || !!aiSummary}>
+          <button className="tool-btn ai-btn" title="Summarize with AI" onClick={onSummarize} disabled={!body.trim() || !!aiSummary}>
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M6.5 1.5l1 2.5h2.5l-2 1.5.8 2.5-2.3-1.5-2.3 1.5.8-2.5-2-1.5H5.5z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
             </svg>
             Summarize
           </button>
-          <button className="tool-btn ai-btn" onClick={onExport}>
+          <button className="tool-btn ai-btn" title="Export as .txt" onClick={onExport}>
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M8 1.5H4a1 1 0 00-1 1v8a1 1 0 001 1h5a1 1 0 001-1V4.5L8 1.5z" stroke="currentColor" strokeWidth="1.1"/>
             </svg>
@@ -185,35 +185,31 @@ function Editor({
           onChange={e => onBodyChange(e.target.value)}
         />
 
-        <div className="link-previews-container" style={{ padding: '0 12px 32px' }}>
-          {isLinkLoading && <div className="ai-status-bar" style={{ background: 'transparent', border: 'none' }}>Scanning links...</div>}
+        <div className="link-previews-container" style={{ padding: '0 24px 32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {isLinkLoading && <div style={{ fontSize: '11px', letterSpacing: '0.05em', color: '#a0a0a0', textTransform: 'uppercase' }}>Scanning links...</div>}
           {linkPreviews.map((lp, idx) => (
-            <div key={lp.url + idx} className="notely-link-card">
-              <div className="preview-info">
-                <div className="preview-title">{lp.title}</div>
-                <div className="preview-site">{lp.domain}</div>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                   <button onClick={() => onExtract(lp)} className="auth-btn" style={{ padding: '3px 8px' }}>Clip</button>
-                   <button onClick={() => window.open(lp.url, '_blank')} className="auth-btn" style={{ padding: '3px 8px' }}>Visit</button>
+            <div key={lp.url + idx} className="link-card" style={{ display: 'flex', maxWidth: '540px', border: '1px solid #eee', borderRadius: '4px', backgroundColor: '#fafaf9', overflow: 'hidden' }}>
+              <div style={{ flex: 1, padding: '16px', minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a1a', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lp.title}</div>
+                <div style={{ fontSize: '11px', color: '#888', marginBottom: '12px', fontStyle: 'italic' }}>{lp.domain}</div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => onExtract(lp)} style={{ fontSize: '10px', padding: '6px 12px', backgroundColor: '#1a1a1a', color: '#fff', border: 'none', borderRadius: '2px', cursor: 'pointer', fontWeight: '500', textTransform: 'uppercase' }}>Clip Page</button>
+                  <button onClick={() => window.open(lp.url, '_blank')} style={{ fontSize: '10px', padding: '6px 12px', backgroundColor: 'transparent', color: '#666', border: '1px solid #ddd', borderRadius: '2px', cursor: 'pointer' }}>Visit</button>
                 </div>
               </div>
-              {lp.image && (
-                <div className="preview-thumb">
-                  <img src={lp.image} alt="" />
-                </div>
-              )}
+              {lp.image && <div style={{ width: '120px', minWidth: '120px' }}><img src={lp.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /></div>}
             </div>
           ))}
         </div>
       </div>
 
       {aiSummary && (
-        <aside className="summary-sidebar">
-          <div className="summary-header">
-            <span className="summary-label">AI Summary</span>
-            <button className="summary-close" onClick={onClearSummary}>✕</button>
+        <aside className="summary-sidebar" style={{ width: '320px', backgroundColor: '#fafaf9', display: 'flex', flexDirection: 'column', borderLeft: '1px solid #eee', position: 'relative' }}>
+          <div style={{ padding: '16px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff' }}>
+            <span style={{ fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#888' }}>AI Summary</span>
+            <button onClick={onClearSummary} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: '14px' }}>✕</button>
           </div>
-          <div className="summary-content">
+          <div style={{ padding: '24px', fontSize: '13px', lineHeight: '1.7', color: '#333', overflowY: 'auto', fontFamily: 'serif', whiteSpace: 'pre-wrap' }}>
             {aiSummary}
           </div>
         </aside>
