@@ -103,13 +103,13 @@ interface EditorProps {
   bodyRef: React.RefObject<HTMLTextAreaElement | null>
   titleRef: React.RefObject<HTMLTextAreaElement | null>
   linkPreview: any | null
-  isPreviewLoading: boolean
+  isLinkLoading: boolean
 }
 
 function Editor({
   activeId, title, body, startedAt, saveStatus, wordCount, aiStatus,
   onTitleChange, onBodyChange, onTitleKeyDown, onDelete,
-  onSummarize, onExport, bodyRef, titleRef, linkPreview, isPreviewLoading
+  onSummarize, onExport, bodyRef, titleRef, linkPreview, isLinkLoading
 }: EditorProps) {
   if (!activeId) {
     return (
@@ -172,53 +172,63 @@ function Editor({
         onChange={e => onBodyChange(e.target.value)}
       />
 
-      {/* LOADING SPINNER */}
-      {isPreviewLoading && (
-        <div style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#888', fontSize: '13px' }}>
-          <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-             <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round" />
-          </svg>
-          Fetching preview...
-        </div>
-      )}
+      {/* --- LINK PREVIEW AREA --- */}
+      <div style={{ padding: '0 20px 20px 20px' }}>
+        {isLinkLoading && (
+           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#888', fontSize: '12px' }}>
+              <div className="spinner-ui"></div>
+              <span>Fetching link details...</span>
+           </div>
+        )}
 
-      {/* COMPACT NOTION-STYLE PREVIEW CARD */}
-      {linkPreview && !isPreviewLoading && (
-        <a 
-          href={linkPreview.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: 'flex',
-            margin: '20px',
-            border: '1px solid #e5dfd0',
-            borderRadius: '6px',
-            backgroundColor: '#fff',
-            textDecoration: 'none',
-            color: 'inherit',
-            maxHeight: '110px',
-            overflow: 'hidden',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-          }}
-        >
-          <div style={{ flex: 1, padding: '12px', minWidth: 0 }}>
-            <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {linkPreview && !isLinkLoading && (
+          <a 
+            href={linkPreview.url} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            style={{
+              display: 'flex',
+              maxWidth: '550px',
+              border: '1px solid #e5dfd0',
+              borderRadius: '8px',
+              backgroundColor: '#fff',
+              textDecoration: 'none',
+              color: 'inherit',
+              overflow: 'hidden',
+              maxHeight: '110px'
+            }}
+          >
+            <div style={{ flex: 1, padding: '12px', minWidth: 0 }}>
+              <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {linkPreview.title}
-            </div>
-            <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.4', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+              </div>
+              <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                 {linkPreview.description}
-            </div>
-            <div style={{ fontSize: '11px', color: '#999', marginTop: '8px' }}>
+              </div>
+              <div style={{ fontSize: '11px', color: '#aaa', marginTop: '6px' }}>
                 {linkPreview.domain}
+              </div>
             </div>
-          </div>
-          {linkPreview.image && (
-            <div style={{ width: '120px', minWidth: '120px', backgroundColor: '#f9f9f9', borderLeft: '1px solid #e5dfd0' }}>
-              <img src={linkPreview.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </div>
-          )}
-        </a>
-      )}
+            {linkPreview.image && (
+              <div style={{ width: '120px', minWidth: '120px', borderLeft: '1px solid #e5dfd0' }}>
+                <img src={linkPreview.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            )}
+          </a>
+        )}
+      </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .spinner-ui {
+          width: 14px;
+          height: 14px;
+          border: 2px solid #ddd;
+          border-top-color: #888;
+          border-radius: 50%;
+          animation: spin-ui 0.8s linear infinite;
+        }
+        @keyframes spin-ui { to { transform: rotate(360deg); } }
+      `}} />
     </div>
   )
 }
@@ -243,9 +253,9 @@ export default function NotelyApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [mobileView, setMobileView] = useState<'list' | 'editor'>('list')
   
-  // Link Preview States
+  // States for link preview
   const [linkPreview, setLinkPreview] = useState<any | null>(null)
-  const [isPreviewLoading, setIsPreviewLoading] = useState(false)
+  const [isLinkLoading, setIsLinkLoading] = useState(false)
 
   const bodyRef = useRef<HTMLTextAreaElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
@@ -377,32 +387,33 @@ export default function NotelyApp() {
     setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0)
     scheduleSave(title, v, sa)
 
-    // Detect first URL
-    const match = v.match(/(https?:\/\/[^\s]+)/)
+    // Link Detection
+    const urlRegex = /(https?:\/\/[^\s]+)/;
+    const match = v.match(urlRegex);
     if (match) {
       const detectedUrl = match[0];
       if (!linkPreview || linkPreview.url !== detectedUrl) {
-        fetchPreview(detectedUrl)
+        fetchPreview(detectedUrl);
       }
     } else {
-      setLinkPreview(null)
+      setLinkPreview(null);
     }
   }
 
   async function fetchPreview(url: string) {
-    setIsPreviewLoading(true);
+    setIsLinkLoading(true);
     try {
       const res = await fetch('/api/link-preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })
-      })
-      const data = await res.json()
-      if (data.title) setLinkPreview(data)
+      });
+      const data = await res.json();
+      if (data.title) setLinkPreview(data);
     } catch (e) {
-      setLinkPreview(null)
+      setLinkPreview(null);
     } finally {
-      setIsPreviewLoading(false);
+      setIsLinkLoading(false);
     }
   }
 
@@ -456,10 +467,10 @@ export default function NotelyApp() {
   async function handleAuth() {
     setAuthError(''); setAuthLoading(true)
     let error
-    if (authMode === 'signup') {
-      ;({ error } = await supabase.auth.signUp({ email, password }))
-    } else {
+    if (authMode === 'signin') {
       ;({ error } = await supabase.auth.signInWithPassword({ email, password }))
+    } else {
+      ;({ error } = await supabase.auth.signUp({ email, password }))
     }
     setAuthLoading(false)
     if (error) { setAuthError(error.message); return }
@@ -566,7 +577,7 @@ export default function NotelyApp() {
                 onSummarize={handleSummarize} onExport={handleExport}
                 bodyRef={bodyRef} titleRef={titleRef}
                 linkPreview={linkPreview}
-                isPreviewLoading={isPreviewLoading}
+                isLinkLoading={isLinkLoading}
               />
             </div>
           )}
@@ -579,7 +590,7 @@ export default function NotelyApp() {
               onSummarize={handleSummarize} onExport={handleExport}
               bodyRef={bodyRef} titleRef={titleRef}
               linkPreview={linkPreview}
-              isPreviewLoading={isPreviewLoading}
+              isLinkLoading={isLinkLoading}
             />
           </div>
         </main>
