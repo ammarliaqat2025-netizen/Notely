@@ -358,33 +358,49 @@ export default function NotelyApp() {
     scheduleSave(v, body, sa)
   }
 
-  function onBodyChange(v: string) {
+function onBodyChange(v: string) {
     let sa = startedAtRef.current
     if (!sa) { sa = new Date().toISOString(); setStartedAt(sa) }
     setBody(v)
     setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0)
     scheduleSave(title, v, sa)
 
-    // Link Detection
-    const match = v.match(/(https?:\/\/[^\s]+)/)
+    // Improved Link Detection: Look for a URL as the user types
+    const urlRegex = /(https?:\/\/[^\s]+)/;
+    const match = v.match(urlRegex);
+    
     if (match) {
-      fetchPreview(match[0])
+      const detectedUrl = match[0];
+      // Only fetch if it's a new URL or we don't have a preview yet
+      if (!linkPreview || linkPreview.url !== detectedUrl) {
+        fetchPreview(detectedUrl);
+      }
     } else {
-      setLinkPreview(null)
+      setLinkPreview(null);
     }
   }
+  
 
   async function fetchPreview(url: string) {
     try {
+      // Small optimization: don't fetch incomplete URLs
+      if (url.length < 12) return; 
+
       const res = await fetch('/api/link-preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })
-      })
-      const data = await res.json()
-      if (data.title) setLinkPreview(data)
+      });
+      
+      if (!res.ok) return;
+
+      const data = await res.json();
+      if (data.title) {
+        setLinkPreview(data);
+      }
     } catch (e) {
-      setLinkPreview(null)
+      console.error("Preview fetch failed", e);
+      setLinkPreview(null);
     }
   }
 
