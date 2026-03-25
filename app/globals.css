@@ -537,3 +537,59 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   animation: spin 1s linear infinite;
 
 }
+
+/* AI SUMMARY SIDEBAR STYLES */
+
+.summary-sidebar {
+  width: 320px;
+  background-color: #f5f0e8; /* Matches your modal background */
+  border-left: 1px solid rgba(44, 36, 22, 0.1);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.02);
+}
+
+.summary-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(44, 36, 22, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #ede8dc; /* Slightly darker header for structure */
+}
+
+.summary-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9a9080; /* Muted ink color */
+  font-family: 'Lora', Georgia, serif;
+}
+
+.summary-content {
+  padding: 24px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: #2c2416; /* Dark ink color from your brand */
+  overflow-y: auto;
+  font-family: 'Lora', Georgia, serif; /* Matching your editor font */
+  white-space: pre-wrap;
+}
+
+.summary-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9a9080;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.summary-close:hover {
+  color: #b5541c; /* Your orange accent color */
+}
