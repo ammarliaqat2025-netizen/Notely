@@ -31,7 +31,7 @@ function exportTxt(title: string, body: string, startedAt: string | null) {
   const a = document.createElement('a'); a.href = url; a.download = `${(title || 'note').replace(/[^a-z0-9]/gi, '-').toLowerCase()}.txt`; a.click(); URL.revokeObjectURL(url);
 }
 
-// --- List Component ---
+// --- Sub-Components ---
 function NotesList({ notes, activeId, onOpen, onDelete, className }: any) {
   return (
     <div className={className}>
@@ -49,7 +49,6 @@ function NotesList({ notes, activeId, onOpen, onDelete, className }: any) {
   )
 }
 
-// --- Editor Component (Restored original styles) ---
 function Editor({ activeId, title, body, startedAt, saveStatus, wordCount, aiStatus, onTitleChange, onBodyChange, onTitleKeyDown, onDelete, onSummarize, onExport, bodyRef, titleRef, linkPreview, isLinkLoading, onExtract }: any) {
   if (!activeId) return <div className="empty-editor"><p>Select a note or create one</p></div>
 
@@ -101,6 +100,8 @@ export default function NotelyApp() {
   const [showModal, setShowModal] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'editor'>('list');
   
@@ -133,6 +134,8 @@ export default function NotelyApp() {
     }
   }, [user])
 
+  function clearEditor() { setActiveId(null); setTitle(''); setBody(''); setStartedAt(null); setWordCount(0); setAiStatus(''); setLinkPreview(null); }
+
   function openNote(n: Note) {
     setActiveId(n.id); setTitle(n.title); setBody(n.body);
     setStartedAt(n.started_at || null);
@@ -157,21 +160,30 @@ export default function NotelyApp() {
     saveTimer.current = setTimeout(() => doSave(t, b), 800);
   }
 
+  function onTitleChange(v: string) {
+    let sa = startedAtRef.current; if (!sa) { sa = new Date().toISOString(); setStartedAt(sa) }
+    setTitle(v); scheduleSave(v, body);
+  }
+
   function onBodyChange(v: string) {
     let sa = startedAtRef.current; if (!sa) { sa = new Date().toISOString(); setStartedAt(sa) }
     setBody(v); setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0);
     scheduleSave(title, v);
 
+    // CRITICAL FIX: Detection logic simplified and re-triggered correctly
     const match = v.match(/(https?:\/\/[^\s]+)/);
-    if (match) { if (!linkPreview || linkPreview.url !== match[0]) fetchPreview(match[0]); } else setLinkPreview(null);
-  }
-
-  async function fetchPreview(url: string) {
-    setIsLinkLoading(true);
-    try {
-      const res = await fetch('/api/link-preview', { method: 'POST', body: JSON.stringify({ url }) });
-      const data = await res.json(); if (data.title) setLinkPreview(data);
-    } catch (e) {} finally { setIsLinkLoading(false); }
+    if (match) { 
+        const url = match[0];
+        if (!linkPreview || linkPreview.url !== url) {
+            setIsLinkLoading(true);
+            fetch('/api/link-preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) })
+              .then(res => res.json())
+              .then(data => { if (data.title) setLinkPreview(data); setIsLinkLoading(false); })
+              .catch(() => setIsLinkLoading(false));
+        }
+    } else { 
+        setLinkPreview(null); 
+    }
   }
 
   async function handleExtract() {
@@ -212,6 +224,15 @@ export default function NotelyApp() {
 
   const signOut = async () => { await supabase.auth.signOut(); setNotes(loadGuest()); setMobileView('list'); };
 
+  const handleAuth = async () => {
+    setAuthError(''); setAuthLoading(true);
+    let error;
+    if (authMode === 'signin') ({ error } = await supabase.auth.signInWithPassword({ email, password }));
+    else ({ error } = await supabase.auth.signUp({ email, password }));
+    setAuthLoading(false);
+    if (error) setAuthError(error.message); else setShowModal(false);
+  }
+
   return (
     <>
       <div className="mobile-header">
@@ -235,7 +256,20 @@ export default function NotelyApp() {
           )}
         </main>
       </div>
-      {showModal && <div className="overlay" onClick={() => setShowModal(false)}><div className="modal" onClick={e => e.stopPropagation()}><button onClick={() => setShowModal(false)}>Close</button></div></div>}
+      {showModal && (
+        <div className="overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-tabs">
+                <button onClick={() => setAuthMode('signin')}>Sign in</button>
+                <button onClick={() => setAuthMode('signup')}>Sign up</button>
+            </div>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" />
+            {authError && <div className="auth-error">{authError}</div>}
+            <button className="modal-submit" onClick={handleAuth}>{authLoading ? 'Loading...' : 'Go'}</button>
+          </div>
+        </div>
+      )}
     </>
   )
 }
