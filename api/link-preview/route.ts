@@ -6,7 +6,15 @@ export async function POST(req: NextRequest) {
     const { url } = await req.json();
     if (!url) return NextResponse.json({ error: 'URL required' }, { status: 400 });
 
-    const res = await fetch(url);
+    // We add a 'User-Agent' header so websites don't block the request
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+
+    if (!res.ok) throw new Error('Site blocked request');
+
     const html = await res.text();
 
     const getMeta = (metaName: string) => {
@@ -15,13 +23,14 @@ export async function POST(req: NextRequest) {
       return match ? match[1] : null;
     };
 
-    const title = getMeta('og:title') || html.match(/<title>(.*?)<\/title>/i)?.[1] || 'Link';
+    const title = getMeta('og:title') || html.match(/<title>(.*?)<\/title>/i)?.[1] || 'Link Preview';
     const description = getMeta('og:description') || getMeta('description') || '';
     const image = getMeta('og:image') || '';
     const domain = new URL(url).hostname.replace('www.', '');
 
     return NextResponse.json({ title, description, image, domain, url });
   } catch (err) {
+    console.error('API Error:', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
