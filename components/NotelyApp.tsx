@@ -8,7 +8,7 @@ interface Note {
   id: string; user_id?: string; title: string; body: string; created_at: string; updated_at: string; started_at?: string; synced?: boolean;
 }
 
-// Formatting
+// --- Formatters ---
 function fmtDate(iso: string) {
   const d = new Date(iso); const diff = Date.now() - d.getTime();
   if (diff < 60000) return 'just now';
@@ -31,7 +31,7 @@ function exportTxt(title: string, body: string, startedAt: string | null) {
   const a = document.createElement('a'); a.href = url; a.download = `${(title || 'note').replace(/[^a-z0-9]/gi, '-').toLowerCase()}.txt`; a.click(); URL.revokeObjectURL(url);
 }
 
-// Sidebar Component
+// --- Sub-Components ---
 function NotesList({ notes, activeId, onOpen, onDelete, className }: any) {
   return (
     <div className={className}>
@@ -47,8 +47,7 @@ function NotesList({ notes, activeId, onOpen, onDelete, className }: any) {
   )
 }
 
-// Editor Component
-function Editor({ activeId, title, body, startedAt, saveStatus, wordCount, aiStatus, onTitleChange, onBodyChange, onDelete, onSummarize, onExport, bodyRef, titleRef, linkPreview, isLinkLoading, onExtract }: any) {
+function Editor({ activeId, title, body, startedAt, saveStatus, wordCount, aiStatus, onTitleChange, onBodyChange, onDelete, onSummarize, onExport, bodyRef, titleRef, linkPreviews, isLinkLoading, onExtract }: any) {
   if (!activeId) return <div className="empty-editor"><p>Select a note or create one</p></div>
 
   return (
@@ -65,18 +64,19 @@ function Editor({ activeId, title, body, startedAt, saveStatus, wordCount, aiSta
       <textarea ref={titleRef} className="note-title" placeholder="Untitled" value={title} onChange={e => onTitleChange(e.target.value)} rows={1} />
       <textarea ref={bodyRef} className="note-body" placeholder="Start writing…" value={body} onChange={e => onBodyChange(e.target.value)} />
 
-      <div style={{ padding: '0 20px 20px' }}>
-        {isLinkLoading && <div style={{ fontSize: '12px', color: '#888' }}>Checking link...</div>}
-        {linkPreview && (
-          <div style={{ display: 'flex', maxWidth: '500px', border: '1px solid #e5dfd0', borderRadius: '8px', backgroundColor: '#fff', overflow: 'hidden' }}>
+      {/* STACK OF MULTIPLE LINK PREVIEWS */}
+      <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {isLinkLoading && <div style={{ fontSize: '12px', color: '#888' }}>Checking links...</div>}
+        {linkPreviews.map((lp: any, idx: number) => (
+          <div key={idx} style={{ display: 'flex', maxWidth: '500px', border: '1px solid #e5dfd0', borderRadius: '8px', backgroundColor: '#fff', overflow: 'hidden' }}>
             <div style={{ flex: 1, padding: '12px', minWidth: 0 }}>
-              <div style={{ fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#000' }}>{linkPreview.title}</div>
-              <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px' }}>{linkPreview.domain}</div>
-              <button onClick={onExtract} style={{ fontSize: '11px', padding: '5px 10px', backgroundColor: '#e5dfd0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Clip Page Text</button>
+              <div style={{ fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#000' }}>{lp.title}</div>
+              <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px' }}>{lp.domain}</div>
+              <button onClick={() => onExtract(lp)} style={{ fontSize: '11px', padding: '5px 10px', backgroundColor: '#e5dfd0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Clip Page Text</button>
             </div>
-            {linkPreview.image && <div style={{ width: '100px', minWidth: '100px' }}><img src={linkPreview.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /></div>}
+            {lp.image && <div style={{ width: '100px', minWidth: '100px' }}><img src={lp.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /></div>}
           </div>
-        )}
+        ))}
       </div>
     </div>
   )
@@ -89,7 +89,6 @@ export default function NotelyApp() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [startedAt, setStartedAt] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const [wordCount, setWordCount] = useState(0);
   const [aiStatus, setAiStatus] = useState('');
@@ -98,7 +97,8 @@ export default function NotelyApp() {
   const [password, setPassword] = useState('');
   const [mobileView, setMobileView] = useState<'list' | 'editor'>('list');
   
-  const [linkPreview, setLinkPreview] = useState<any | null>(null);
+  // SUPPORT FOR MULTIPLE PREVIEWS
+  const [linkPreviews, setLinkPreviews] = useState<any[]>([]);
   const [isLinkLoading, setIsLinkLoading] = useState(false);
 
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -106,9 +106,8 @@ export default function NotelyApp() {
   const saveTimer = useRef<any>(null);
   const activeIdRef = useRef<string | null>(null);
   const userRef = useRef<User | null>(null);
-  const startedAtRef = useRef<string | null>(null);
 
-  useEffect(() => { activeIdRef.current = activeId; userRef.current = user; startedAtRef.current = startedAt; }, [activeId, user, startedAt])
+  useEffect(() => { activeIdRef.current = activeId; userRef.current = user; }, [activeId, user])
   
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
@@ -127,7 +126,7 @@ export default function NotelyApp() {
   function openNote(n: Note) {
     setActiveId(n.id); setTitle(n.title); setBody(n.body);
     setWordCount(n.body.trim() ? n.body.trim().split(/\s+/).length : 0);
-    setSaveStatus('saved'); setMobileView('editor'); setLinkPreview(null);
+    setSaveStatus('saved'); setMobileView('editor'); setLinkPreviews([]);
   }
 
   const doSave = useCallback(async (t: string, b: string) => {
@@ -150,27 +149,44 @@ export default function NotelyApp() {
   function onBodyChange(v: string) {
     setBody(v); setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0);
     scheduleSave(title, v);
-    const match = v.match(/(https?:\/\/[^\s]+)/);
-    if (match) { if (!linkPreview || linkPreview.url !== match[0]) fetchPreview(match[0]); } else setLinkPreview(null);
+
+    // MULTI-LINK DETECTION
+    const matches = v.match(/(https?:\/\/[^\s]+)/g) || [];
+    
+    // 1. Remove previews for links no longer in text
+    setLinkPreviews(prev => prev.filter(lp => matches.includes(lp.url)));
+
+    // 2. Fetch new links only
+    matches.forEach(url => {
+        const alreadyFetched = linkPreviews.find(lp => lp.url === url);
+        if (!alreadyFetched) fetchPreview(url);
+    });
   }
 
   async function fetchPreview(url: string) {
     setIsLinkLoading(true);
     try {
       const res = await fetch('/api/link-preview', { method: 'POST', body: JSON.stringify({ url }) });
-      const data = await res.json(); if (data.title) setLinkPreview(data);
+      const data = await res.json(); 
+      if (data.title) {
+        setLinkPreviews(prev => {
+            if (prev.find(lp => lp.url === url)) return prev; // Prevent duplicates
+            return [...prev, data];
+        });
+      }
     } catch (e) {} finally { setIsLinkLoading(false); }
   }
 
-  async function handleExtract() {
-    if (!linkPreview?.url) return;
+  async function handleExtract(lp: any) {
     setAiStatus('✦ Extracting...');
     try {
-      const res = await fetch('/api/link-preview', { method: 'POST', body: JSON.stringify({ url: linkPreview.url }) });
+      const res = await fetch('/api/link-preview', { method: 'POST', body: JSON.stringify({ url: lp.url }) });
       const data = await res.json();
       if (!res.ok) { alert(data.error); setAiStatus(''); return; }
       const newBody = body + `\n\n--- Content from ${data.domain} ---\n` + data.fullContent;
-      setBody(newBody); scheduleSave(title, newBody); setLinkPreview(null); setAiStatus('');
+      setBody(newBody); scheduleSave(title, newBody);
+      setLinkPreviews(prev => prev.filter(p => p.url !== lp.url));
+      setAiStatus('');
     } catch { setAiStatus(''); }
   }
 
@@ -188,6 +204,7 @@ export default function NotelyApp() {
     const now = new Date().toISOString(); const tempId = `temp-${Date.now()}`;
     const tempNote = { id: tempId, title: '', body: '', created_at: now, updated_at: now, synced: false };
     setNotes(prev => [tempNote, ...prev]); openNote(tempNote);
+    if (!user) saveGuest([tempNote, ...notes]);
   }
 
   const handleDelete = async (id: string, e: any) => {
@@ -219,7 +236,7 @@ export default function NotelyApp() {
         </aside>
         <main className="editor-area">
           {mobileView === 'list' ? <NotesList notes={notes} activeId={activeId} onOpen={openNote} onDelete={handleDelete} className="mobile-notes-panel" /> : (
-            <Editor activeId={activeId} title={title} body={body} startedAt={startedAt} saveStatus={saveStatus} wordCount={wordCount} aiStatus={aiStatus} onTitleChange={setTitle} onBodyChange={onBodyChange} onDelete={handleDelete} onSummarize={handleSummarize} onExport={() => exportTxt(title, body, startedAt)} bodyRef={bodyRef} titleRef={titleRef} linkPreview={linkPreview} isLinkLoading={isLinkLoading} onExtract={handleExtract} />
+            <Editor activeId={activeId} title={title} body={body} saveStatus={saveStatus} wordCount={wordCount} aiStatus={aiStatus} onTitleChange={setTitle} onBodyChange={onBodyChange} onDelete={handleDelete} onSummarize={handleSummarize} onExport={() => exportTxt(title, body, null)} bodyRef={bodyRef} titleRef={titleRef} linkPreviews={linkPreviews} isLinkLoading={isLinkLoading} onExtract={handleExtract} />
           )}
         </main>
       </div>
