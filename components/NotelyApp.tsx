@@ -352,33 +352,37 @@ export default function NotelyApp() {
     }
   }, [])
 
- // ── AI SUMMARIZE ──
-async function handleSummarize() {
-  if (!body.trim()) return
-  setAiStatus('✦ Summarizing…')
-  try {
-    const res = await fetch('/api/summarize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, body })
-    })
-    const data = await res.json()
-    const summary = data.summary || 'Could not generate summary.'
-
-    // ── PREPEND summary to note body ──
-    const divider = '\n\n─── AI Summary ───\n'
-    const newBody = divider + summary + '\n\n' + body
-
-    setBody(newBody)
-    setWordCount(newBody.trim().split(/\s+/).length)
-    scheduleSave(title, newBody, startedAt)
-    setAiStatus('✦ Summary added at the top of your note')
-    setTimeout(() => setAiStatus(''), 3000)
-  } catch {
-    setAiStatus('✦ Could not connect to AI. Try again.')
-    setTimeout(() => setAiStatus(''), 3000)
+  // ── AI SUMMARIZE ──
+  async function handleSummarize() {
+    if (!body.trim()) return
+    setAiStatus('✦ Summarizing…')
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: `Summarize this note in 2-3 clear sentences. Be concise and capture the key points only. Do not add any preamble, just the summary.\n\nNote title: ${title}\n\nNote content:\n${body}`
+          }]
+        })
+      })
+      const data = await response.json()
+      const summary = data.content?.[0]?.text || 'Could not generate summary.'
+      const divider = '\n\n─── AI Summary ───\n'
+      const newBody = body + divider + summary
+      setBody(newBody)
+      setWordCount(newBody.trim().split(/\s+/).length)
+      scheduleSave(title, newBody, startedAt)
+      setAiStatus('✦ Summary added below your note')
+      setTimeout(() => setAiStatus(''), 3000)
+    } catch {
+      setAiStatus('✦ Could not connect to AI. Try again.')
+      setTimeout(() => setAiStatus(''), 3000)
+    }
   }
-}
 
   // ── EXPORT ──
   function handleExport() {
