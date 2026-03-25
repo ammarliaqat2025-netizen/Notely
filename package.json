@@ -21,11 +21,3 @@
     "typescript": "^5"
   }
 }
-{
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build --no-turbo",
-    "start": "next start",
-    "lint": "next lint"
-  }
-}
