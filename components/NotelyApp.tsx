@@ -102,8 +102,8 @@ interface EditorProps {
   onExport: () => void
   bodyRef: React.RefObject<HTMLTextAreaElement | null>
   titleRef: React.RefObject<HTMLTextAreaElement | null>
-  // Added for link preview
-  linkPreview: { title: string; description: string; url: string } | null
+  // Link Preview Data
+  linkPreview: any | null
 }
 
 function Editor({
@@ -172,23 +172,40 @@ function Editor({
         onChange={e => onBodyChange(e.target.value)}
       />
 
-      {/* SURGICAL ADDITION: Link Preview Card */}
+      {/* NOTION STYLE LINK PREVIEW */}
       {linkPreview && (
         <div 
           onClick={() => window.open(linkPreview.url, '_blank')}
           style={{
+            display: 'flex',
             margin: '20px',
-            padding: '12px',
             border: '1px solid #e5dfd0',
             borderRadius: '8px',
             backgroundColor: '#fff',
             cursor: 'pointer',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+            overflow: 'hidden',
+            maxHeight: '110px',
+            transition: 'border-color 0.2s'
           }}
+          onMouseOver={(e) => e.currentTarget.style.borderColor = '#c0b9a8'}
+          onMouseOut={(e) => e.currentTarget.style.borderColor = '#e5dfd0'}
         >
-          <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '4px' }}>{linkPreview.title}</div>
-          <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.4' }}>{linkPreview.description}</div>
-          <div style={{ fontSize: '10px', color: '#999', marginTop: '8px' }}>{linkPreview.url}</div>
+          <div style={{ flex: 1, padding: '12px', overflow: 'hidden' }}>
+            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {linkPreview.title}
+            </div>
+            <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+              {linkPreview.description}
+            </div>
+            <div style={{ fontSize: '11px', color: '#999', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>{linkPreview.domain}</span>
+            </div>
+          </div>
+          {linkPreview.image && (
+            <div style={{ width: '140px', backgroundColor: '#f5f5f5', borderLeft: '1px solid #e5dfd0' }}>
+              <img src={linkPreview.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -215,8 +232,8 @@ export default function NotelyApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [mobileView, setMobileView] = useState<'list' | 'editor'>('list')
   
-  // SURGICAL ADDITION: Preview state
-  const [linkPreview, setLinkPreview] = useState<{ title: string; description: string; url: string } | null>(null)
+  // Link Preview state
+  const [linkPreview, setLinkPreview] = useState<any | null>(null)
 
   const bodyRef = useRef<HTMLTextAreaElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
@@ -272,7 +289,6 @@ export default function NotelyApp() {
     setAiStatus('')
     setSidebarOpen(false)
     setMobileView('editor')
-    // Reset preview on open
     setLinkPreview(null)
   }
 
@@ -342,7 +358,6 @@ export default function NotelyApp() {
     scheduleSave(v, body, sa)
   }
 
-  // SURGICAL UPDATE: Added Link Detection
   function onBodyChange(v: string) {
     let sa = startedAtRef.current
     if (!sa) { sa = new Date().toISOString(); setStartedAt(sa) }
@@ -350,7 +365,7 @@ export default function NotelyApp() {
     setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0)
     scheduleSave(title, v, sa)
 
-    // Detect first URL
+    // Link Detection
     const match = v.match(/(https?:\/\/[^\s]+)/)
     if (match) {
       fetchPreview(match[0])
@@ -359,7 +374,6 @@ export default function NotelyApp() {
     }
   }
 
-  // SURGICAL ADDITION: Fetch preview helper
   async function fetchPreview(url: string) {
     try {
       const res = await fetch('/api/link-preview', {
@@ -368,7 +382,7 @@ export default function NotelyApp() {
         body: JSON.stringify({ url })
       })
       const data = await res.json()
-      if (data.title) setLinkPreview({ title: data.title, description: data.description, url })
+      if (data.title) setLinkPreview(data)
     } catch (e) {
       setLinkPreview(null)
     }
