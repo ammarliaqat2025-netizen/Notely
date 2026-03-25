@@ -538,10 +538,10 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
 
 }
 
-/* ── AI SUMMARY SIDEBAR ── */
+/* ── AI SUMMARY SIDEBAR (FORCED THEME) ── */
 .summary-sidebar {
   width: 320px;
-  background-color: var(--paper-dark); /* Using your #ede8dc */
+  background-color: var(--paper-dark) !important; /* Forces the #ede8dc tone */
   border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
@@ -557,7 +557,7 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: var(--paper-deep); /* Using your #e5dfd0 */
+  background-color: var(--paper-deep) !important; /* Forces the #e5dfd0 tone */
 }
 
 .summary-label {
@@ -565,46 +565,20 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink-faint); /* Using your #9a9080 */
-  font-family: Georgia, serif;
+  color: var(--ink-faint); 
+  font-family: Georgia, serif !important;
 }
 
 .summary-content {
   padding: 24px 28px;
   font-size: 15px;
   line-height: 1.8;
-  color: var(--ink-light); /* Using your #5a5040 */
+  color: var(--ink-light) !important;
+  background-color: transparent !important;
   overflow-y: auto;
-  font-family: Georgia, serif;
+  font-family: Georgia, serif !important;
   white-space: pre-wrap;
-  font-style: italic; /* Distinct style for AI-generated thoughts */
-}
-
-.summary-content::-webkit-scrollbar {
-  width: 4px;
-}
-
-.summary-content::-webkit-scrollbar-thumb {
-  background: var(--line);
-  border-radius: 4px;
-}
-
-.summary-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--ink-faint);
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.1s;
-}
-
-.summary-close:hover {
-  color: var(--accent); /* Using your #b5541c */
-  background: var(--paper-deep);
+  font-style: italic;
 }
 
 /* ── TYPEWRITER CURSOR ── */
@@ -623,16 +597,4 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
 @keyframes slideIn {
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
-}
-
-/* ── MOBILE ADAPTATION ── */
-@media (max-width: 640px) {
-  .summary-sidebar {
-    position: fixed;
-    top: 52px; /* Below your mobile header */
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    z-index: 60;
-  }
 }
