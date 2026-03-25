@@ -102,7 +102,6 @@ interface EditorProps {
   onExport: () => void
   bodyRef: React.RefObject<HTMLTextAreaElement | null>
   titleRef: React.RefObject<HTMLTextAreaElement | null>
-  // Link Preview Data
   linkPreview: any | null
 }
 
@@ -172,41 +171,28 @@ function Editor({
         onChange={e => onBodyChange(e.target.value)}
       />
 
-      {/* NOTION STYLE LINK PREVIEW */}
+      {/* Notion-Style Preview Card */}
       {linkPreview && (
-        <div 
-          onClick={() => window.open(linkPreview.url, '_blank')}
-          style={{
-            display: 'flex',
-            margin: '20px',
-            border: '1px solid #e5dfd0',
-            borderRadius: '8px',
-            backgroundColor: '#fff',
-            cursor: 'pointer',
-            overflow: 'hidden',
-            maxHeight: '110px',
-            transition: 'border-color 0.2s'
-          }}
-          onMouseOver={(e) => e.currentTarget.style.borderColor = '#c0b9a8'}
-          onMouseOut={(e) => e.currentTarget.style.borderColor = '#e5dfd0'}
+        <a 
+          href={linkPreview.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="notely-link-card"
         >
-          <div style={{ flex: 1, padding: '12px', overflow: 'hidden' }}>
-            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {linkPreview.title}
-            </div>
-            <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-              {linkPreview.description}
-            </div>
-            <div style={{ fontSize: '11px', color: '#999', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>{linkPreview.domain}</span>
-            </div>
+          <div className="preview-info">
+            <div className="preview-title">{linkPreview.title}</div>
+            {linkPreview.description && (
+              <div className="preview-desc">{linkPreview.description}</div>
+            )}
+            <div className="preview-site">{linkPreview.domain}</div>
           </div>
+          
           {linkPreview.image && (
-            <div style={{ width: '140px', backgroundColor: '#f5f5f5', borderLeft: '1px solid #e5dfd0' }}>
-              <img src={linkPreview.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div className="preview-thumb">
+              <img src={linkPreview.image} alt="" loading="lazy" />
             </div>
           )}
-        </div>
+        </a>
       )}
     </div>
   )
@@ -358,49 +344,36 @@ export default function NotelyApp() {
     scheduleSave(v, body, sa)
   }
 
-function onBodyChange(v: string) {
+  function onBodyChange(v: string) {
     let sa = startedAtRef.current
     if (!sa) { sa = new Date().toISOString(); setStartedAt(sa) }
     setBody(v)
     setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0)
     scheduleSave(title, v, sa)
 
-    // Check for a link
-    const urlRegex = /(https?:\/\/[^\s]+)/;
-    const match = v.match(urlRegex);
-    
+    // Detect first URL
+    const match = v.match(/(https?:\/\/[^\s]+)/)
     if (match) {
       const detectedUrl = match[0];
-      // Only fetch if we haven't already fetched this specific URL
       if (!linkPreview || linkPreview.url !== detectedUrl) {
-        console.log("Found link, fetching preview for:", detectedUrl);
-        fetchPreview(detectedUrl);
+        fetchPreview(detectedUrl)
       }
     } else {
-      if (linkPreview) setLinkPreview(null);
+      setLinkPreview(null)
     }
   }
 
   async function fetchPreview(url: string) {
     try {
-      // Small optimization: don't fetch incomplete URLs
-      if (url.length < 12) return; 
-
       const res = await fetch('/api/link-preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })
-      });
-      
-      if (!res.ok) return;
-
-      const data = await res.json();
-      if (data.title) {
-        setLinkPreview(data);
-      }
+      })
+      const data = await res.json()
+      if (data.title) setLinkPreview(data)
     } catch (e) {
-      console.error("Preview fetch failed", e);
-      setLinkPreview(null);
+      setLinkPreview(null)
     }
   }
 
