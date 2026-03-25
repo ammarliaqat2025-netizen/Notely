@@ -538,17 +538,18 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
 
 }
 
-/* ── AI SUMMARY SIDEBAR (FORCED THEME) ── */
+/* ── AI SUMMARY SIDEBAR (FINAL THEME FIX) ── */
 .summary-sidebar {
   width: 320px;
-  background-color: var(--paper-dark) !important; /* Forces the #ede8dc tone */
+  background-color: var(--paper-dark) !important;
   border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   height: 100%;
   box-shadow: -2px 0 10px rgba(44, 36, 22, 0.02);
-  animation: slideIn 0.3s ease-out;
   z-index: 100;
+  /* Force font on the container itself */
+  font-family: Georgia, serif !important;
 }
 
 .summary-header {
@@ -557,7 +558,7 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: var(--paper-deep) !important; /* Forces the #e5dfd0 tone */
+  background-color: var(--paper-deep) !important;
 }
 
 .summary-label {
@@ -565,36 +566,49 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink-faint); 
+  color: var(--ink-faint);
+  /* Explicitly set for the label */
   font-family: Georgia, serif !important;
 }
 
-.summary-content {
+.summary-content, 
+.summary-content span, 
+.summary-content p {
   padding: 24px 28px;
   font-size: 15px;
-  line-height: 1.8;
+  line-height: 1.9 !important; /* Matches your note-body line height */
   color: var(--ink-light) !important;
   background-color: transparent !important;
   overflow-y: auto;
+  /* Force font on the actual text elements */
   font-family: Georgia, serif !important;
   white-space: pre-wrap;
   font-style: italic;
 }
 
-/* ── TYPEWRITER CURSOR ── */
+.summary-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-faint);
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.1s;
+}
+
+/* ── TYPEWRITER CURSOR FIX ── */
 .summary-content span::after {
   content: '|';
   margin-left: 2px;
   color: var(--accent);
+  font-style: normal !important; /* Prevents the cursor from leaning */
   animation: blink 1s step-end infinite;
 }
 
 @keyframes blink {
   from, to { opacity: 1; }
   50% { opacity: 0; }
-}
-
-@keyframes slideIn {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
 }
