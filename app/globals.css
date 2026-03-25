@@ -1,12 +1,32 @@
-/* ── SUMMARY SIDEBAR ── */
+/* Add this to your globals.css */
+
+.editor-wrap {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+  background: var(--paper); /* Ensures the background matches your first image */
+}
+
+.editor-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+}
+
+/* ── NEW SUMMARY SIDEBAR ── */
 .summary-sidebar {
   width: 320px;
-  background: var(--paper-dark);
+  background: var(--paper-dark); /* Using your warmer paper-dark variable */
   border-left: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   height: 100%;
-  animation: fadeIn 0.3s ease-out;
+  animation: slideIn 0.3s ease-out;
+  box-shadow: -4px 0 12px rgba(44,36,22,0.04);
 }
 
 .summary-header {
@@ -15,7 +35,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: var(--paper-deep);
+  background: var(--paper-deep); /* Slightly darker header for contrast */
 }
 
 .summary-label {
@@ -24,6 +44,7 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-faint);
+  font-family: Georgia, serif;
 }
 
 .summary-content {
@@ -34,7 +55,7 @@
   overflow-y: auto;
   font-family: Georgia, serif;
   white-space: pre-wrap;
-  font-style: italic;
+  font-style: italic; /* Matches the "thoughtful" AI vibe */
 }
 
 .summary-close {
@@ -45,6 +66,7 @@
   padding: 4px;
   display: flex;
   border-radius: 4px;
+  transition: all 0.1s;
 }
 
 .summary-close:hover {
@@ -52,24 +74,18 @@
   background: var(--paper-deep);
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateX(10px); }
-  to { opacity: 1; transform: translateX(0); }
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
 }
 
-/* Responsive adjust */
-@media (max-width: 1024px) {
-  .summary-sidebar { width: 260px; }
+/* Ensure the Link Cards also use your theme colors */
+.notely-link-card {
+  background: var(--paper-dark) !important;
+  border: 1px solid var(--line) !important;
 }
 
-@media (max-width: 640px) {
-  .summary-sidebar {
-    position: fixed;
-    right: 0;
-    top: 52px;
-    bottom: 0;
-    width: 100%;
-    z-index: 60;
-    border-left: none;
-  }
+.preview-title {
+  color: var(--ink) !important;
+  font-family: Georgia, serif;
 }
