@@ -4,8 +4,24 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import type { User } from '@supabase/supabase-js'
 
+// --- TypeScript Rules ---
 interface Note {
-  id: string; user_id?: string; title: string; body: string; created_at: string; updated_at: string; started_at?: string; synced?: boolean;
+  id: string; 
+  user_id?: string; 
+  title: string; 
+  body: string; 
+  created_at: string; 
+  updated_at: string; 
+  started_at?: string; 
+  synced?: boolean;
+}
+
+interface PreviewData {
+  title: string;
+  domain: string;
+  url: string;
+  image?: string;
+  fullContent?: string;
 }
 
 // --- Formatters ---
@@ -31,7 +47,7 @@ function exportTxt(title: string, body: string, startedAt: string | null) {
   const a = document.createElement('a'); a.href = url; a.download = `${(title || 'note').replace(/[^a-z0-9]/gi, '-').toLowerCase()}.txt`; a.click(); URL.revokeObjectURL(url);
 }
 
-// --- Sub-Components ---
+// --- Components ---
 function NotesList({ notes, activeId, onOpen, onDelete, className }: any) {
   return (
     <div className={className}>
@@ -64,10 +80,9 @@ function Editor({ activeId, title, body, saveStatus, wordCount, aiStatus, onTitl
       <textarea ref={titleRef} className="note-title" placeholder="Untitled" value={title} onChange={e => onTitleChange(e.target.value)} rows={1} />
       <textarea ref={bodyRef} className="note-body" placeholder="Start writing…" value={body} onChange={e => onBodyChange(e.target.value)} />
 
-      {/* STACK OF MULTIPLE LINK PREVIEWS */}
       <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {isLinkLoading && <div style={{ fontSize: '12px', color: '#888' }}>Checking links...</div>}
-        {linkPreviews.map((lp: any, idx: number) => (
+        {linkPreviews.map((lp: PreviewData, idx: number) => (
           <div key={lp.url || idx} style={{ display: 'flex', maxWidth: '500px', border: '1px solid #e5dfd0', borderRadius: '8px', backgroundColor: '#fff', overflow: 'hidden' }}>
             <div style={{ flex: 1, padding: '12px', minWidth: 0 }}>
               <div style={{ fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#000' }}>{lp.title}</div>
@@ -97,8 +112,8 @@ export default function NotelyApp() {
   const [password, setPassword] = useState('');
   const [mobileView, setMobileView] = useState<'list' | 'editor'>('list');
   
-  // FIX: Added explicit type to prevent 'never' error
-  const [linkPreviews, setLinkPreviews] = useState<any[]>([]);
+  // FIX: Explicitly typed as PreviewData[] to satisfy TypeScript
+  const [linkPreviews, setLinkPreviews] = useState<PreviewData[]>([]);
   const [isLinkLoading, setIsLinkLoading] = useState(false);
 
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -150,14 +165,13 @@ export default function NotelyApp() {
     setBody(v); setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0);
     scheduleSave(title, v);
 
-    // MULTI-LINK DETECTION
     const matches = v.match(/(https?:\/\/[^\s]+)/g) || [];
     
-    // FIX: Typed the filter logic to satisfy TypeScript
-    setLinkPreviews((prev: any[]) => prev.filter((lp: any) => matches.includes(lp.url)));
+    // FIX: Using functional update with explicit typing
+    setLinkPreviews((prev: PreviewData[]) => prev.filter((lp: PreviewData) => matches.includes(lp.url)));
 
     matches.forEach(url => {
-        const alreadyFetched = linkPreviews.find((lp: any) => lp.url === url);
+        const alreadyFetched = linkPreviews.find((lp: PreviewData) => lp.url === url);
         if (!alreadyFetched) fetchPreview(url);
     });
   }
@@ -168,23 +182,23 @@ export default function NotelyApp() {
       const res = await fetch('/api/link-preview', { method: 'POST', body: JSON.stringify({ url }) });
       const data = await res.json(); 
       if (data.title) {
-        setLinkPreviews((prev: any[]) => {
-            if (prev.find((lp: any) => lp.url === url)) return prev;
-            return [...prev, data];
+        setLinkPreviews((prev: PreviewData[]) => {
+            if (prev.find((lp: PreviewData) => lp.url === url)) return prev;
+            return [...prev, data as PreviewData];
         });
       }
     } catch (e) {} finally { setIsLinkLoading(false); }
   }
 
-  async function handleExtract(lp: any) {
+  async function handleExtract(lp: PreviewData) {
     setAiStatus('✦ Extracting...');
     try {
       const res = await fetch('/api/link-preview', { method: 'POST', body: JSON.stringify({ url: lp.url }) });
       const data = await res.json();
       if (!res.ok) { alert(data.error); setAiStatus(''); return; }
-      const newBody = body + `\n\n--- Content from ${data.domain} ---\n` + data.fullContent;
+      const newBody = body + `\n\n--- Content from ${data.domain} ---\n` + (data.fullContent || '');
       setBody(newBody); scheduleSave(title, newBody);
-      setLinkPreviews((prev: any[]) => prev.filter((p: any) => p.url !== lp.url));
+      setLinkPreviews((prev: PreviewData[]) => prev.filter((p: PreviewData) => p.url !== lp.url));
       setAiStatus('');
     } catch { setAiStatus(''); }
   }
@@ -203,7 +217,6 @@ export default function NotelyApp() {
     const now = new Date().toISOString(); const tempId = `temp-${Date.now()}`;
     const tempNote = { id: tempId, title: '', body: '', created_at: now, updated_at: now, synced: false };
     setNotes(prev => [tempNote, ...prev]); openNote(tempNote);
-    if (!user) saveGuest([tempNote, ...notes]);
   }
 
   const handleDelete = async (id: string, e: any) => {
@@ -226,8 +239,8 @@ export default function NotelyApp() {
         )}
       </div>
       <div className="app">
-        <aside className={`sidebar ${mobileView === 'list' ? 'open' : ''}`}>
-          <div className="sidebar-header">Notely. <button onClick={newNote}>New</button></div>
+        <aside className={`sidebar`}>
+          <div className="sidebar-header"><div className="brand">Notely.</div><button className="new-btn" onClick={newNote}>New note</button></div>
           <NotesList notes={notes} activeId={activeId} onOpen={openNote} onDelete={handleDelete} className="notes-list" />
           <div className="sidebar-footer">
             {user ? <button className="auth-btn" onClick={() => supabase.auth.signOut()}>sign out</button> : <button className="auth-btn" onClick={() => setShowModal(true)}>sign in</button>}
