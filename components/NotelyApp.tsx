@@ -53,8 +53,6 @@ function exportTxt(title: string, body: string, startedAt: string | null) {
   URL.revokeObjectURL(url)
 }
 
-// ── OUTSIDE COMPONENT — no re-creation on render ──
-
 interface NotesListProps {
   notes: Note[]
   activeId: string | null
@@ -104,12 +102,14 @@ interface EditorProps {
   onExport: () => void
   bodyRef: React.RefObject<HTMLTextAreaElement | null>
   titleRef: React.RefObject<HTMLTextAreaElement | null>
+  // Added for link preview
+  linkPreview: { title: string; description: string; url: string } | null
 }
 
 function Editor({
   activeId, title, body, startedAt, saveStatus, wordCount, aiStatus,
   onTitleChange, onBodyChange, onTitleKeyDown, onDelete,
-  onSummarize, onExport, bodyRef, titleRef
+  onSummarize, onExport, bodyRef, titleRef, linkPreview
 }: EditorProps) {
   if (!activeId) {
     return (
@@ -171,11 +171,29 @@ function Editor({
         value={body}
         onChange={e => onBodyChange(e.target.value)}
       />
+
+      {/* SURGICAL ADDITION: Link Preview Card */}
+      {linkPreview && (
+        <div 
+          onClick={() => window.open(linkPreview.url, '_blank')}
+          style={{
+            margin: '20px',
+            padding: '12px',
+            border: '1px solid #e5dfd0',
+            borderRadius: '8px',
+            backgroundColor: '#fff',
+            cursor: 'pointer',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+          }}
+        >
+          <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '4px' }}>{linkPreview.title}</div>
+          <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.4' }}>{linkPreview.description}</div>
+          <div style={{ fontSize: '10px', color: '#999', marginTop: '8px' }}>{linkPreview.url}</div>
+        </div>
+      )}
     </div>
   )
 }
-
-// ── MAIN COMPONENT ──
 
 export default function NotelyApp() {
   const supabase = createClient()
@@ -196,6 +214,9 @@ export default function NotelyApp() {
   const [authLoading, setAuthLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [mobileView, setMobileView] = useState<'list' | 'editor'>('list')
+  
+  // SURGICAL ADDITION: Preview state
+  const [linkPreview, setLinkPreview] = useState<{ title: string; description: string; url: string } | null>(null)
 
   const bodyRef = useRef<HTMLTextAreaElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
@@ -229,7 +250,7 @@ export default function NotelyApp() {
   }, [user])
 
   function clearEditor() {
-    setActiveId(null); setTitle(''); setBody(''); setStartedAt(null); setWordCount(0); setAiStatus('')
+    setActiveId(null); setTitle(''); setBody(''); setStartedAt(null); setWordCount(0); setAiStatus(''); setLinkPreview(null);
   }
 
   async function fetchCloud() {
@@ -251,14 +272,14 @@ export default function NotelyApp() {
     setAiStatus('')
     setSidebarOpen(false)
     setMobileView('editor')
+    // Reset preview on open
+    setLinkPreview(null)
   }
 
-  // ── INSTANT NEW NOTE ──
   async function newNote() {
     const now = new Date().toISOString()
     const tempId = `temp-${Date.now()}`
 
-    // 1. Create locally and show INSTANTLY
     const tempNote: Note = {
       id: tempId, title: '', body: '',
       created_at: now, updated_at: now, started_at: now, synced: false
@@ -269,7 +290,6 @@ export default function NotelyApp() {
     if (!userRef.current) saveGuest(updatedNotes)
     setTimeout(() => titleRef.current?.focus(), 50)
 
-    // 2. If logged in, sync to cloud in background
     if (userRef.current) {
       try {
         const res = await fetch('/api/notes', {
@@ -279,15 +299,11 @@ export default function NotelyApp() {
         })
         if (res.ok) {
           const cloudNote: Note = await res.json()
-          // Replace temp note with real cloud note
           setNotes(prev => prev.map(n => n.id === tempId ? { ...cloudNote, synced: true } : n))
-          // Update activeId to real cloud id
           setActiveId(cloudNote.id)
           activeIdRef.current = cloudNote.id
         }
-      } catch (e) {
-        // Keep temp note if network fails, will retry on next save
-      }
+      } catch (e) {}
     }
   }
 
@@ -326,12 +342,36 @@ export default function NotelyApp() {
     scheduleSave(v, body, sa)
   }
 
+  // SURGICAL UPDATE: Added Link Detection
   function onBodyChange(v: string) {
     let sa = startedAtRef.current
     if (!sa) { sa = new Date().toISOString(); setStartedAt(sa) }
     setBody(v)
     setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0)
     scheduleSave(title, v, sa)
+
+    // Detect first URL
+    const match = v.match(/(https?:\/\/[^\s]+)/)
+    if (match) {
+      fetchPreview(match[0])
+    } else {
+      setLinkPreview(null)
+    }
+  }
+
+  // SURGICAL ADDITION: Fetch preview helper
+  async function fetchPreview(url: string) {
+    try {
+      const res = await fetch('/api/link-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      })
+      const data = await res.json()
+      if (data.title) setLinkPreview({ title: data.title, description: data.description, url })
+    } catch (e) {
+      setLinkPreview(null)
+    }
   }
 
   const onTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -352,42 +392,31 @@ export default function NotelyApp() {
     }
   }, [])
 
- // ── AI SUMMARIZE ──
-async function handleSummarize() {
-  if (!body.trim()) return
-  setAiStatus('✦ Summarizing…')
-
-  try {
-    const response = await fetch('/api/summarize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, body })
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed')
+  async function handleSummarize() {
+    if (!body.trim()) return
+    setAiStatus('✦ Summarizing…')
+    try {
+      const response = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, body })
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Failed')
+      const summary = data.summary || 'Could not generate summary.'
+      const divider = '\n\n─── AI Summary ───\n'
+      const newBody = body + divider + summary
+      setBody(newBody)
+      setWordCount(newBody.trim().split(/\s+/).length)
+      scheduleSave(title, newBody, startedAt)
+      setAiStatus('✦ Summary added below your note')
+      setTimeout(() => setAiStatus(''), 3000)
+    } catch (err) {
+      setAiStatus('✦ Could not connect to AI. Try again.')
+      setTimeout(() => setAiStatus(''), 3000)
     }
-
-    const summary = data.summary || 'Could not generate summary.'
-    const divider = '\n\n─── AI Summary ───\n'
-    const newBody = body + divider + summary
-
-    setBody(newBody)
-    setWordCount(newBody.trim().split(/\s+/).length)
-    scheduleSave(title, newBody, startedAt)
-
-    setAiStatus('✦ Summary added below your note')
-    setTimeout(() => setAiStatus(''), 3000)
-  } catch (err) {
-    console.error(err)
-    setAiStatus('✦ Could not connect to AI. Try again.')
-    setTimeout(() => setAiStatus(''), 3000)
   }
-}
 
-  // ── EXPORT ──
   function handleExport() {
     exportTxt(title, body, startedAt)
   }
@@ -504,6 +533,7 @@ async function handleSummarize() {
                 onTitleKeyDown={onTitleKeyDown} onDelete={handleDelete}
                 onSummarize={handleSummarize} onExport={handleExport}
                 bodyRef={bodyRef} titleRef={titleRef}
+                linkPreview={linkPreview}
               />
             </div>
           )}
@@ -515,6 +545,7 @@ async function handleSummarize() {
               onTitleKeyDown={onTitleKeyDown} onDelete={handleDelete}
               onSummarize={handleSummarize} onExport={handleExport}
               bodyRef={bodyRef} titleRef={titleRef}
+              linkPreview={linkPreview}
             />
           </div>
         </main>
