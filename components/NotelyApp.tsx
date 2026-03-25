@@ -103,12 +103,13 @@ interface EditorProps {
   bodyRef: React.RefObject<HTMLTextAreaElement | null>
   titleRef: React.RefObject<HTMLTextAreaElement | null>
   linkPreview: any | null
+  isPreviewLoading: boolean
 }
 
 function Editor({
   activeId, title, body, startedAt, saveStatus, wordCount, aiStatus,
   onTitleChange, onBodyChange, onTitleKeyDown, onDelete,
-  onSummarize, onExport, bodyRef, titleRef, linkPreview
+  onSummarize, onExport, bodyRef, titleRef, linkPreview, isPreviewLoading
 }: EditorProps) {
   if (!activeId) {
     return (
@@ -171,25 +172,49 @@ function Editor({
         onChange={e => onBodyChange(e.target.value)}
       />
 
-      {/* Notion-Style Preview Card */}
-      {linkPreview && (
+      {/* LOADING SPINNER */}
+      {isPreviewLoading && (
+        <div style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#888', fontSize: '13px' }}>
+          <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+             <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round" />
+          </svg>
+          Fetching preview...
+        </div>
+      )}
+
+      {/* COMPACT NOTION-STYLE PREVIEW CARD */}
+      {linkPreview && !isPreviewLoading && (
         <a 
           href={linkPreview.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="notely-link-card"
+          style={{
+            display: 'flex',
+            margin: '20px',
+            border: '1px solid #e5dfd0',
+            borderRadius: '6px',
+            backgroundColor: '#fff',
+            textDecoration: 'none',
+            color: 'inherit',
+            maxHeight: '110px',
+            overflow: 'hidden',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+          }}
         >
-          <div className="preview-info">
-            <div className="preview-title">{linkPreview.title}</div>
-            {linkPreview.description && (
-              <div className="preview-desc">{linkPreview.description}</div>
-            )}
-            <div className="preview-site">{linkPreview.domain}</div>
+          <div style={{ flex: 1, padding: '12px', minWidth: 0 }}>
+            <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {linkPreview.title}
+            </div>
+            <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.4', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                {linkPreview.description}
+            </div>
+            <div style={{ fontSize: '11px', color: '#999', marginTop: '8px' }}>
+                {linkPreview.domain}
+            </div>
           </div>
-          
           {linkPreview.image && (
-            <div className="preview-thumb">
-              <img src={linkPreview.image} alt="" loading="lazy" />
+            <div style={{ width: '120px', minWidth: '120px', backgroundColor: '#f9f9f9', borderLeft: '1px solid #e5dfd0' }}>
+              <img src={linkPreview.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
           )}
         </a>
@@ -218,8 +243,9 @@ export default function NotelyApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [mobileView, setMobileView] = useState<'list' | 'editor'>('list')
   
-  // Link Preview state
+  // Link Preview States
   const [linkPreview, setLinkPreview] = useState<any | null>(null)
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false)
 
   const bodyRef = useRef<HTMLTextAreaElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
@@ -364,6 +390,7 @@ export default function NotelyApp() {
   }
 
   async function fetchPreview(url: string) {
+    setIsPreviewLoading(true);
     try {
       const res = await fetch('/api/link-preview', {
         method: 'POST',
@@ -374,6 +401,8 @@ export default function NotelyApp() {
       if (data.title) setLinkPreview(data)
     } catch (e) {
       setLinkPreview(null)
+    } finally {
+      setIsPreviewLoading(false);
     }
   }
 
@@ -537,6 +566,7 @@ export default function NotelyApp() {
                 onSummarize={handleSummarize} onExport={handleExport}
                 bodyRef={bodyRef} titleRef={titleRef}
                 linkPreview={linkPreview}
+                isPreviewLoading={isPreviewLoading}
               />
             </div>
           )}
@@ -549,6 +579,7 @@ export default function NotelyApp() {
               onSummarize={handleSummarize} onExport={handleExport}
               bodyRef={bodyRef} titleRef={titleRef}
               linkPreview={linkPreview}
+              isPreviewLoading={isPreviewLoading}
             />
           </div>
         </main>
