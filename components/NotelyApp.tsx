@@ -365,21 +365,21 @@ function onBodyChange(v: string) {
     setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0)
     scheduleSave(title, v, sa)
 
-    // Improved Link Detection: Look for a URL as the user types
+    // Check for a link
     const urlRegex = /(https?:\/\/[^\s]+)/;
     const match = v.match(urlRegex);
     
     if (match) {
       const detectedUrl = match[0];
-      // Only fetch if it's a new URL or we don't have a preview yet
+      // Only fetch if we haven't already fetched this specific URL
       if (!linkPreview || linkPreview.url !== detectedUrl) {
+        console.log("Found link, fetching preview for:", detectedUrl);
         fetchPreview(detectedUrl);
       }
     } else {
-      setLinkPreview(null);
+      if (linkPreview) setLinkPreview(null);
     }
   }
-  
 
   async function fetchPreview(url: string) {
     try {
