@@ -114,12 +114,15 @@ interface EditorProps {
   linkPreviews: PreviewData[]
   isLinkLoading: boolean
   onExtract: (lp: PreviewData) => void
+  aiSummary: string
+  onClearSummary: () => void
 }
 
 function Editor({
   activeId, title, body, startedAt, saveStatus, wordCount, aiStatus,
   onTitleChange, onBodyChange, onTitleKeyDown, onDelete,
-  onSummarize, onExport, bodyRef, titleRef, linkPreviews, isLinkLoading, onExtract
+  onSummarize, onExport, bodyRef, titleRef, linkPreviews, isLinkLoading, onExtract,
+  aiSummary, onClearSummary
 }: EditorProps) {
   if (!activeId) {
     return (
@@ -132,71 +135,85 @@ function Editor({
       </div>
     )
   }
-  return (
-    <div className="editor-wrap">
-      <div className="toolbar">
-        <button className="tool-btn" title="Delete note" onClick={e => onDelete(activeId, e)}>
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-            <path d="M2 3.5h9M5 3.5V2.5h3v1M5.5 6v4M7.5 6v4M3 3.5l.7 7h5.6l.7-7"
-              stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-        <div className="tool-sep" />
-        <button className="tool-btn ai-btn" title="Summarize with AI" onClick={onSummarize} disabled={!body.trim()}>
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-            <path d="M6.5 1.5l1 2.5h2.5l-2 1.5.8 2.5-2.3-1.5-2.3 1.5.8-2.5-2-1.5H5.5z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
-            <path d="M2 10h9M3.5 12h6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-          </svg>
-          Summarize
-        </button>
-        <button className="tool-btn ai-btn" title="Export as .txt" onClick={onExport}>
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-            <path d="M8 1.5H4a1 1 0 00-1 1v8a1 1 0 001 1h5a1 1 0 001-1V4.5L8 1.5z" stroke="currentColor" strokeWidth="1.1"/>
-            <path d="M8 1.5V4.5H11M4.5 7h4M4.5 9h2.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
-          </svg>
-          Export
-        </button>
-        <span className="word-count">{wordCount}w</span>
-        <span className={`save-status ${saveStatus}`}>{saveStatus === 'saved' ? '● saved' : '○ saving…'}</span>
-      </div>
-      {aiStatus && <div className="ai-status-bar">{aiStatus}</div>}
-      {startedAt && (
-        <div className="note-timestamp">⏱ {fmtTime(startedAt)} · {fmtFull(startedAt)}</div>
-      )}
-      <textarea
-        ref={titleRef}
-        className="note-title"
-        placeholder="Untitled"
-        value={title}
-        onChange={e => onTitleChange(e.target.value)}
-        onKeyDown={onTitleKeyDown}
-        rows={1}
-      />
-      <textarea
-        ref={bodyRef}
-        className="note-body"
-        placeholder="Start writing…"
-        value={body}
-        onChange={e => onBodyChange(e.target.value)}
-      />
 
-      <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {isLinkLoading && <div style={{ fontSize: '12px', color: '#888' }}>Checking links...</div>}
-        {linkPreviews.map((lp, idx) => (
-          <div key={lp.url + idx} style={{ display: 'flex', maxWidth: '500px', border: '1px solid #e5dfd0', borderRadius: '8px', backgroundColor: '#fff', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-            <div style={{ flex: 1, padding: '12px', minWidth: 0 }}>
-              <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lp.title}</div>
-              <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px' }}>{lp.domain}</div>
-              <button 
-                onClick={() => onExtract(lp)} 
-                style={{ fontSize: '11px', padding: '5px 10px', backgroundColor: '#f4f1e8', border: '1px solid #e5dfd0', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                Clip Page Text
-              </button>
+  return (
+    <div className="editor-outer-wrap" style={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden' }}>
+      <div className="editor-main-column" style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', borderRight: aiSummary ? '1px solid #eee' : 'none' }}>
+        <div className="toolbar">
+          <button className="tool-btn" title="Delete note" onClick={e => onDelete(activeId, e)}>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M2 3.5h9M5 3.5V2.5h3v1M5.5 6v4M7.5 6v4M3 3.5l.7 7h5.6l.7-7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          <div className="tool-sep" />
+          <button className="tool-btn ai-btn" title="Summarize with AI" onClick={onSummarize} disabled={!body.trim() || !!aiSummary}>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M6.5 1.5l1 2.5h2.5l-2 1.5.8 2.5-2.3-1.5-2.3 1.5.8-2.5-2-1.5H5.5z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
+            </svg>
+            Summarize
+          </button>
+          <button className="tool-btn ai-btn" title="Export as .txt" onClick={onExport}>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M8 1.5H4a1 1 0 00-1 1v8a1 1 0 001 1h5a1 1 0 001-1V4.5L8 1.5z" stroke="currentColor" strokeWidth="1.1"/>
+            </svg>
+            Export
+          </button>
+          <span className="word-count">{wordCount}w</span>
+          <span className={`save-status ${saveStatus}`}>{saveStatus === 'saved' ? '● saved' : '○ saving…'}</span>
+        </div>
+
+        {aiStatus && <div className="ai-status-bar">{aiStatus}</div>}
+        
+        {startedAt && (
+          <div className="note-timestamp">⏱ {fmtTime(startedAt)} · {fmtFull(startedAt)}</div>
+        )}
+        
+        <textarea
+          ref={titleRef}
+          className="note-title"
+          placeholder="Untitled"
+          value={title}
+          onChange={e => onTitleChange(e.target.value)}
+          onKeyDown={onTitleKeyDown}
+          rows={1}
+        />
+        <textarea
+          ref={bodyRef}
+          className="note-body"
+          placeholder="Start writing…"
+          value={body}
+          onChange={e => onBodyChange(e.target.value)}
+        />
+
+        <div className="link-previews-container" style={{ padding: '0 24px 32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {isLinkLoading && <div style={{ fontSize: '11px', letterSpacing: '0.05em', color: '#a0a0a0', textTransform: 'uppercase' }}>Scanning links...</div>}
+          {linkPreviews.map((lp, idx) => (
+            <div key={lp.url + idx} className="link-card" style={{ display: 'flex', maxWidth: '540px', border: '1px solid #eee', borderRadius: '4px', backgroundColor: '#fafaf9', overflow: 'hidden' }}>
+              <div style={{ flex: 1, padding: '16px', minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a1a', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lp.title}</div>
+                <div style={{ fontSize: '11px', color: '#888', marginBottom: '12px', fontStyle: 'italic' }}>{lp.domain}</div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => onExtract(lp)} style={{ fontSize: '10px', padding: '6px 12px', backgroundColor: '#1a1a1a', color: '#fff', border: 'none', borderRadius: '2px', cursor: 'pointer', fontWeight: '500', textTransform: 'uppercase' }}>Clip Page</button>
+                  <button onClick={() => window.open(lp.url, '_blank')} style={{ fontSize: '10px', padding: '6px 12px', backgroundColor: 'transparent', color: '#666', border: '1px solid #ddd', borderRadius: '2px', cursor: 'pointer' }}>Visit</button>
+                </div>
+              </div>
+              {lp.image && <div style={{ width: '120px', minWidth: '120px' }}><img src={lp.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /></div>}
             </div>
-            {lp.image && <div style={{ width: '100px', minWidth: '100px' }}><img src={lp.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /></div>}
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
+
+      {aiSummary && (
+        <aside className="summary-sidebar" style={{ width: '320px', backgroundColor: '#fafaf9', display: 'flex', flexDirection: 'column', borderLeft: '1px solid #eee', position: 'relative' }}>
+          <div style={{ padding: '16px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff' }}>
+            <span style={{ fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#888' }}>AI Summary</span>
+            <button onClick={onClearSummary} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: '14px' }}>✕</button>
+          </div>
+          <div style={{ padding: '24px', fontSize: '13px', lineHeight: '1.7', color: '#333', overflowY: 'auto', fontFamily: 'serif', whiteSpace: 'pre-wrap' }}>
+            {aiSummary}
+          </div>
+        </aside>
+      )}
     </div>
   )
 }
@@ -212,6 +229,7 @@ export default function NotelyApp() {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved')
   const [wordCount, setWordCount] = useState(0)
   const [aiStatus, setAiStatus] = useState('')
+  const [aiSummary, setAiSummary] = useState('')
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [showModal, setShowModal] = useState(false)
   const [email, setEmail] = useState('')
@@ -248,7 +266,7 @@ export default function NotelyApp() {
     }
   }, [user])
 
-  function clearEditor() { setActiveId(null); setTitle(''); setBody(''); setStartedAt(null); setWordCount(0); setAiStatus(''); setLinkPreviews([]); }
+  function clearEditor() { setActiveId(null); setTitle(''); setBody(''); setStartedAt(null); setWordCount(0); setAiStatus(''); setAiSummary(''); setLinkPreviews([]); }
 
   async function fetchCloud() {
     const res = await fetch('/api/notes')
@@ -260,7 +278,7 @@ export default function NotelyApp() {
   function openNote(note: Note) {
     setActiveId(note.id); setTitle(note.title); setBody(note.body); setStartedAt(note.started_at || null);
     setWordCount(note.body.trim() ? note.body.trim().split(/\s+/).length : 0);
-    setSaveStatus('saved'); setAiStatus(''); setSidebarOpen(false); setMobileView('editor'); setLinkPreviews([]);
+    setSaveStatus('saved'); setAiStatus(''); setAiSummary(''); setSidebarOpen(false); setMobileView('editor'); setLinkPreviews([]);
   }
 
   async function newNote() {
@@ -330,23 +348,22 @@ export default function NotelyApp() {
       const res = await fetch('/api/link-preview', { method: 'POST', body: JSON.stringify({ url: lp.url }) });
       const data = await res.json();
       if (!res.ok) throw new Error();
-      const newBody = body + `\n\n─── Content from ${data.domain} ───\n` + (data.fullContent || '');
+      const divider = `\n\n─── ${data.domain.toUpperCase()} CLIP ───\n`;
+      const newBody = body + divider + (data.fullContent || '');
       setBody(newBody); scheduleSave(title, newBody, startedAt);
       setLinkPreviews(prev => prev.filter(p => p.url !== lp.url));
       setAiStatus('');
-    } catch { setAiStatus('✦ Failed to extract.'); setTimeout(() => setAiStatus(''), 3000); }
+    } catch { setAiStatus('✦ Extraction failed.'); setTimeout(() => setAiStatus(''), 3000); }
   }
 
   async function handleSummarize() {
-    if (!body.trim()) return; setAiStatus('✦ Summarizing…')
+    if (!body.trim()) return; setAiStatus('✦ Thinking…')
     try {
       const response = await fetch('/api/summarize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, body }) })
       const data = await response.json()
-      const divider = '\n\n─── AI Summary ───\n'
-      const newBody = body + divider + data.summary
-      setBody(newBody); scheduleSave(title, newBody, startedAt)
-      setAiStatus('✦ Summary added below'); setTimeout(() => setAiStatus(''), 3000)
-    } catch (err) { setAiStatus('✦ Error summarizing'); setTimeout(() => setAiStatus(''), 3000) }
+      setAiSummary(data.summary)
+      setAiStatus('');
+    } catch (err) { setAiStatus('✦ Error'); setTimeout(() => setAiStatus(''), 3000) }
   }
 
   const handleDelete = useCallback(async (id: string, e: React.MouseEvent) => {
@@ -407,6 +424,7 @@ export default function NotelyApp() {
               onTitleChange={onTitleChange} onBodyChange={onBodyChange} onTitleKeyDown={e => e.key === 'Enter' && (e.preventDefault(), bodyRef.current?.focus())} 
               onDelete={handleDelete} onSummarize={handleSummarize} onExport={() => exportTxt(title, body, startedAt)} 
               bodyRef={bodyRef} titleRef={titleRef} linkPreviews={linkPreviews} isLinkLoading={isLinkLoading} onExtract={handleExtract}
+              aiSummary={aiSummary} onClearSummary={() => setAiSummary('')}
             />
           )}
         </main>
