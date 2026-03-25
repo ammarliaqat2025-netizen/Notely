@@ -5,12 +5,20 @@ import { createClient } from '@/lib/supabase-client'
 import type { User } from '@supabase/supabase-js'
 
 interface Note {
-  id: string; user_id?: string; title: string; body: string; created_at: string; updated_at: string; started_at?: string; synced?: boolean;
+  id: string; 
+  user_id?: string; 
+  title: string; 
+  body: string; 
+  created_at: string; 
+  updated_at: string; 
+  started_at?: string; 
+  synced?: boolean;
 }
 
-// --- Formatters ---
+// --- Formatting Helpers ---
 function fmtDate(iso: string) {
-  const d = new Date(iso); const diff = Date.now() - d.getTime();
+  const d = new Date(iso); 
+  const diff = Date.now() - d.getTime();
   if (diff < 60000) return 'just now';
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
@@ -28,10 +36,14 @@ function exportTxt(title: string, body: string, startedAt: string | null) {
   const content = `${title || 'Untitled'}\n${'─'.repeat(40)}\n${ts}${body}`;
   const blob = new Blob([content], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `${(title || 'note').replace(/[^a-z0-9]/gi, '-').toLowerCase()}.txt`; a.click(); URL.revokeObjectURL(url);
+  const a = document.createElement('a'); 
+  a.href = url; 
+  a.download = `${(title || 'note').replace(/[^a-z0-9]/gi, '-').toLowerCase()}.txt`; 
+  a.click(); 
+  URL.revokeObjectURL(url);
 }
 
-// --- Components ---
+// --- Sub-Components ---
 function NotesList({ notes, activeId, onOpen, onDelete, className }: any) {
   return (
     <div className={className}>
@@ -89,6 +101,7 @@ function Editor({ activeId, title, body, startedAt, saveStatus, wordCount, aiSta
   )
 }
 
+// --- Main App ---
 export default function NotelyApp() {
   const supabase = createClient();
   const [user, setUser] = useState<User | null>(null);
@@ -121,23 +134,65 @@ export default function NotelyApp() {
   const notesRef = useRef<Note[]>([]);
 
   useEffect(() => { activeIdRef.current = activeId; userRef.current = user; startedAtRef.current = startedAt; notesRef.current = notes; }, [activeId, user, startedAt, notes])
-  useEffect(() => { supabase.auth.getUser().then(({ data }) => setUser(data.user)); const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => setUser(session?.user ?? null)); return () => subscription.unsubscribe() }, [])
-  useEffect(() => { if (user) fetchCloud(); else { const gn = loadGuest(); setNotes(gn); if (gn.length > 0) openNote(gn[0]); else clearEditor(); } }, [user])
+  
+  useEffect(() => { 
+    supabase.auth.getUser().then(({ data }) => setUser(data.user)); 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => setUser(session?.user ?? null)); 
+    return () => subscription.unsubscribe();
+  }, [])
+
+  useEffect(() => { 
+    if (user) fetchCloud(); 
+    else { 
+      const gn = loadGuest(); setNotes(gn); 
+      if (gn.length > 0) openNote(gn[0]); 
+      else clearEditor(); 
+    } 
+  }, [user])
 
   function clearEditor() { setActiveId(null); setTitle(''); setBody(''); setStartedAt(null); setWordCount(0); setAiStatus(''); setLinkPreview(null); }
-  async function fetchCloud() { const res = await fetch('/api/notes'); if (res.ok) { const data = await res.json(); setNotes(data); if (data.length > 0) openNote(data[0]); else clearEditor(); } }
-  function openNote(note: Note) { setActiveId(note.id); setTitle(note.title); setBody(note.body); setStartedAt(note.started_at || null); setWordCount(note.body.trim() ? note.body.trim().split(/\s+/).length : 0); setSaveStatus('saved'); setAiStatus(''); setSidebarOpen(false); setMobileView('editor'); setLinkPreview(null); }
+  
+  async function fetchCloud() { 
+    const res = await fetch('/api/notes'); 
+    if (res.ok) { 
+      const data = await res.json(); 
+      setNotes(data); 
+      if (data.length > 0) openNote(data[0]); 
+      else clearEditor(); 
+    } 
+  }
+
+  function openNote(note: Note) { 
+    setActiveId(note.id); 
+    setTitle(note.title); 
+    setBody(note.body); 
+    setStartedAt(note.started_at || null); 
+    setWordCount(note.body.trim() ? note.body.trim().split(/\s+/).length : 0); 
+    setSaveStatus('saved'); 
+    setAiStatus(''); 
+    setSidebarOpen(false); 
+    setMobileView('editor'); 
+    setLinkPreview(null); 
+  }
   
   async function newNote() {
-    const now = new Date().toISOString(); const tempId = `temp-${Date.now()}`;
+    const now = new Date().toISOString(); 
+    const tempId = `temp-${Date.now()}`;
     const tempNote: Note = { id: tempId, title: '', body: '', created_at: now, updated_at: now, started_at: now, synced: false };
-    const updatedNotes = [tempNote, ...notesRef.current]; setNotes(updatedNotes); openNote(tempNote);
+    const updatedNotes = [tempNote, ...notesRef.current]; 
+    setNotes(updatedNotes); 
+    openNote(tempNote);
     if (!userRef.current) saveGuest(updatedNotes);
     setTimeout(() => titleRef.current?.focus(), 50);
     if (userRef.current) {
       try {
         const res = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: '', body: '', started_at: now }) });
-        if (res.ok) { const cloudNote = await res.json(); setNotes(prev => prev.map(n => n.id === tempId ? { ...cloudNote, synced: true } : n)); setActiveId(cloudNote.id); activeIdRef.current = cloudNote.id; }
+        if (res.ok) { 
+          const cloudNote = await res.json(); 
+          setNotes(prev => prev.map(n => n.id === tempId ? { ...cloudNote, synced: true } : n)); 
+          setActiveId(cloudNote.id); 
+          activeIdRef.current = cloudNote.id; 
+        }
       } catch (e) {}
     }
   }
@@ -171,7 +226,7 @@ export default function NotelyApp() {
       const res = await fetch('/api/link-preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: linkPreview.url }) });
       const data = await res.json();
       
-      // SAFETY CHECK: If the site blocked us, alert the user and DON'T paste
+      // Safety Check for FT.com / Protected sites
       if (data.fullContent?.includes("Access Error") || data.fullContent?.includes("Access Denied")) {
         alert("This website is protected (FT.com/Cloudflare) and cannot be clipped.");
         setAiStatus('');
@@ -193,11 +248,51 @@ export default function NotelyApp() {
   }
 
   const onTitleKeyDown = useCallback((e: any) => { if (e.key === 'Enter') { e.preventDefault(); bodyRef.current?.focus() } }, []);
-  const handleDelete = useCallback(async (id: string, e: any) => { e.stopPropagation(); if (userRef.current && !id.startsWith('temp-')) await fetch(`/api/notes/${id}`, { method: 'DELETE' }); const updated = notesRef.current.filter(n => n.id !== id); if (!userRef.current) saveGuest(updated); setNotes(updated); if (activeIdRef.current === id) { if (updated.length > 0) openNote(updated[0]); else { clearEditor(); setMobileView('list') } } }, []);
+  
+  const handleDelete = useCallback(async (id: string, e: any) => { 
+    e.stopPropagation(); 
+    if (userRef.current && !id.startsWith('temp-')) await fetch(`/api/notes/${id}`, { method: 'DELETE' }); 
+    const updated = notesRef.current.filter(n => n.id !== id); 
+    if (!userRef.current) saveGuest(updated); 
+    setNotes(updated); 
+    if (activeIdRef.current === id) { 
+      if (updated.length > 0) openNote(updated[0]); 
+      else { clearEditor(); setMobileView('list') } 
+    } 
+  }, []);
   
   async function handleSummarize() {
     if (!body.trim()) return; setAiStatus('✦ Summarizing…');
-    try { const res = await fetch('/api/summarize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, body }) }); const data = await res.json(); if (!res.ok) throw new Error(); const summary = data.summary || ''; const divider = '\n\n─── AI Summary ───\n'; const newBody = body + divider + summary; setBody(newBody); setWordCount(newBody.trim().split(/\s+/).length); scheduleSave(title, newBody, startedAt); setAiStatus('✦ Summary added below'); setTimeout(() => setAiStatus(''), 3000); } catch { setAiStatus('✦ AI Failed'); setTimeout(() => setAiStatus(''), 3000); }
+    try { 
+      const res = await fetch('/api/summarize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, body }) }); 
+      const data = await res.json(); 
+      if (!res.ok) throw new Error(); 
+      const summary = data.summary || ''; 
+      const divider = '\n\n─── AI Summary ───\n'; 
+      const newBody = body + divider + summary; 
+      setBody(newBody); 
+      setWordCount(newBody.trim().split(/\s+/).length); 
+      scheduleSave(title, newBody, startedAt); 
+      setAiStatus('✦ Summary added below'); 
+      setTimeout(() => setAiStatus(''), 3000); 
+    } catch { setAiStatus('✦ AI Failed'); setTimeout(() => setAiStatus(''), 3000); }
+  }
+
+  async function handleAuth() { 
+    setAuthError(''); setAuthLoading(true); 
+    let error; 
+    if (authMode === 'signin') ({ error } = await supabase.auth.signInWithPassword({ email, password })); 
+    else ({ error } = await supabase.auth.signUp({ email, password })); 
+    setAuthLoading(false); 
+    if (error) setAuthError(error.message); 
+    else setShowModal(false); 
+  }
+
+  async function signOut() { 
+    await supabase.auth.signOut(); 
+    setNotes(loadGuest()); 
+    clearEditor(); 
+    setMobileView('list'); 
   }
 
   return (
@@ -209,21 +304,29 @@ export default function NotelyApp() {
         <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
           <div className="sidebar-header"><div className="brand">Notely<span className="brand-dot">.</span></div><button className="new-btn" onClick={newNote}>New note</button></div>
           <NotesList notes={notes} activeId={activeId} onOpen={openNote} onDelete={handleDelete} className="notes-list" />
-          <div className="sidebar-footer">{user ? <button className="auth-btn" onClick={signOut}>sign out</button> : <button className="auth-btn" onClick={() => setShowModal(true)}>sign in</button>}</div>
+          <div className="sidebar-footer">
+            {user ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '11px', color: '#888' }}>{user.email?.split('@')[0]}</span>
+                <button className="auth-btn" onClick={signOut}>sign out</button>
+              </div>
+            ) : (
+              <button className="auth-btn" onClick={() => setShowModal(true)}>sign in</button>
+            )}
+          </div>
         </aside>
         
-        {/* FIX: Combined the mobile/desktop rendering logic to prevent duplicates */}
         <main className="editor-area">
           {mobileView === 'list' ? (
-            <NotesList notes={notes} activeId={activeId} onOpen={handleOpen} onDelete={handleDelete} className="mobile-notes-panel" />
+            <NotesList notes={notes} activeId={activeId} onOpen={openNote} onDelete={handleDelete} className="mobile-notes-panel" />
           ) : (
             <>
-              {/* This Editor handles the mobile view when not on 'list' */}
+              {/* Only the mobile editor is rendered when mobileView is 'editor' */}
               <div className="mobile-editor">
                  <Editor activeId={activeId} title={title} body={body} startedAt={startedAt} saveStatus={saveStatus} wordCount={wordCount} aiStatus={aiStatus} onTitleChange={onTitleChange} onBodyChange={onBodyChange} onTitleKeyDown={onTitleKeyDown} onDelete={handleDelete} onSummarize={handleSummarize} onExport={() => exportTxt(title, body, startedAt)} bodyRef={bodyRef} titleRef={titleRef} linkPreview={linkPreview} isLinkLoading={isLinkLoading} onExtract={handleExtract} />
               </div>
               
-              {/* This Editor handles the desktop view */}
+              {/* This is hidden via CSS on mobile, shown on desktop */}
               <div className="desktop-editor">
                  <Editor activeId={activeId} title={title} body={body} startedAt={startedAt} saveStatus={saveStatus} wordCount={wordCount} aiStatus={aiStatus} onTitleChange={onTitleChange} onBodyChange={onBodyChange} onTitleKeyDown={onTitleKeyDown} onDelete={handleDelete} onSummarize={handleSummarize} onExport={() => exportTxt(title, body, startedAt)} bodyRef={bodyRef} titleRef={titleRef} linkPreview={linkPreview} isLinkLoading={isLinkLoading} onExtract={handleExtract} />
               </div>
