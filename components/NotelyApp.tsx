@@ -8,6 +8,7 @@ interface Note {
   id: string; user_id?: string; title: string; body: string; created_at: string; updated_at: string; started_at?: string; synced?: boolean;
 }
 
+// --- Formatters ---
 function fmtDate(iso: string) {
   const d = new Date(iso); const diff = Date.now() - d.getTime();
   if (diff < 60000) return 'just now';
@@ -30,6 +31,7 @@ function exportTxt(title: string, body: string, startedAt: string | null) {
   const a = document.createElement('a'); a.href = url; a.download = `${(title || 'note').replace(/[^a-z0-9]/gi, '-').toLowerCase()}.txt`; a.click(); URL.revokeObjectURL(url);
 }
 
+// --- Components ---
 function NotesList({ notes, activeId, onOpen, onDelete, className }: any) {
   return (
     <div className={className}>
@@ -74,9 +76,9 @@ function Editor({ activeId, title, body, startedAt, saveStatus, wordCount, aiSta
               <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px' }}>{linkPreview.domain}</div>
               <button 
                 onClick={onExtract}
-                style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: '#e5dfd0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                style={{ fontSize: '11px', padding: '6px 12px', backgroundColor: '#e5dfd0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
               >
-                Clip Full Content
+                Clip Page Text
               </button>
             </div>
             {linkPreview.image && <div style={{ width: '100px', minWidth: '100px' }}><img src={linkPreview.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>}
@@ -88,9 +90,35 @@ function Editor({ activeId, title, body, startedAt, saveStatus, wordCount, aiSta
 }
 
 export default function NotelyApp() {
-  const supabase = createClient(); const [user, setUser] = useState<User | null>(null); const [notes, setNotes] = useState<Note[]>([]); const [activeId, setActiveId] = useState<string | null>(null); const [title, setTitle] = useState(''); const [body, setBody] = useState(''); const [startedAt, setStartedAt] = useState<string | null>(null); const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved'); const [wordCount, setWordCount] = useState(0); const [aiStatus, setAiStatus] = useState(''); const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin'); const [showModal, setShowModal] = useState(false); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [authError, setAuthError] = useState(''); const [authLoading, setAuthLoading] = useState(false); const [sidebarOpen, setSidebarOpen] = useState(false); const [mobileView, setMobileView] = useState<'list' | 'editor'>('list');
-  const [linkPreview, setLinkPreview] = useState<any | null>(null); const [isLinkLoading, setIsLinkLoading] = useState(false);
-  const bodyRef = useRef<HTMLTextAreaElement>(null); const titleRef = useRef<HTMLTextAreaElement>(null); const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null); const activeIdRef = useRef<string | null>(null); const userRef = useRef<User | null>(null); const startedAtRef = useRef<string | null>(null); const notesRef = useRef<Note[]>([])
+  const supabase = createClient();
+  const [user, setUser] = useState<User | null>(null);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [startedAt, setStartedAt] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
+  const [wordCount, setWordCount] = useState(0);
+  const [aiStatus, setAiStatus] = useState('');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [showModal, setShowModal] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileView, setMobileView] = useState<'list' | 'editor'>('list');
+  
+  const [linkPreview, setLinkPreview] = useState<any | null>(null);
+  const [isLinkLoading, setIsLinkLoading] = useState(false);
+
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeIdRef = useRef<string | null>(null);
+  const userRef = useRef<User | null>(null);
+  const startedAtRef = useRef<string | null>(null);
+  const notesRef = useRef<Note[]>([]);
 
   useEffect(() => { activeIdRef.current = activeId; userRef.current = user; startedAtRef.current = startedAt; notesRef.current = notes; }, [activeId, user, startedAt, notes])
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setUser(data.user)); const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => setUser(session?.user ?? null)); return () => subscription.unsubscribe() }, [])
@@ -107,7 +135,8 @@ export default function NotelyApp() {
     if (!userRef.current) saveGuest(updatedNotes);
     setTimeout(() => titleRef.current?.focus(), 50);
     if (userRef.current) {
-      try { const res = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: '', body: '', started_at: now }) });
+      try {
+        const res = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: '', body: '', started_at: now }) });
         if (res.ok) { const cloudNote = await res.json(); setNotes(prev => prev.map(n => n.id === tempId ? { ...cloudNote, synced: true } : n)); setActiveId(cloudNote.id); activeIdRef.current = cloudNote.id; }
       } catch (e) {}
     }
@@ -135,14 +164,32 @@ export default function NotelyApp() {
     try { const res = await fetch('/api/link-preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) }); const data = await res.json(); if (data.title) setLinkPreview(data); } catch (e) {} finally { setIsLinkLoading(false); }
   }
 
-  function handleExtract() {
-    if (!linkPreview?.fullContent) return;
-    const divider = `\n\n--- Content from ${linkPreview.domain} ---\n`;
-    const newBody = body + divider + linkPreview.fullContent;
-    setBody(newBody);
-    setWordCount(newBody.trim().split(/\s+/).length);
-    scheduleSave(title, newBody, startedAt);
-    setLinkPreview(null); // Clear card after extraction
+  async function handleExtract() {
+    if (!linkPreview?.url) return;
+    setAiStatus('✦ Extracting...');
+    try {
+      const res = await fetch('/api/link-preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: linkPreview.url }) });
+      const data = await res.json();
+      
+      // SAFETY CHECK: If the site blocked us, alert the user and DON'T paste
+      if (data.fullContent?.includes("Access Error") || data.fullContent?.includes("Access Denied")) {
+        alert("This website is protected (FT.com/Cloudflare) and cannot be clipped.");
+        setAiStatus('');
+        return;
+      }
+
+      const divider = `\n\n--- Content from ${data.domain} ---\n`;
+      const newBody = body + divider + data.fullContent;
+      setBody(newBody);
+      setWordCount(newBody.trim().split(/\s+/).length);
+      scheduleSave(title, newBody, startedAt);
+      setLinkPreview(null);
+      setAiStatus('✦ Content clipped!');
+      setTimeout(() => setAiStatus(''), 3000);
+    } catch {
+      setAiStatus('✦ Extraction failed');
+      setTimeout(() => setAiStatus(''), 3000);
+    }
   }
 
   const onTitleKeyDown = useCallback((e: any) => { if (e.key === 'Enter') { e.preventDefault(); bodyRef.current?.focus() } }, []);
@@ -152,9 +199,6 @@ export default function NotelyApp() {
     if (!body.trim()) return; setAiStatus('✦ Summarizing…');
     try { const res = await fetch('/api/summarize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, body }) }); const data = await res.json(); if (!res.ok) throw new Error(); const summary = data.summary || ''; const divider = '\n\n─── AI Summary ───\n'; const newBody = body + divider + summary; setBody(newBody); setWordCount(newBody.trim().split(/\s+/).length); scheduleSave(title, newBody, startedAt); setAiStatus('✦ Summary added below'); setTimeout(() => setAiStatus(''), 3000); } catch { setAiStatus('✦ AI Failed'); setTimeout(() => setAiStatus(''), 3000); }
   }
-
-  async function handleAuth() { setAuthError(''); setAuthLoading(true); let error; if (authMode === 'signin') ({ error } = await supabase.auth.signInWithPassword({ email, password })); else ({ error } = await supabase.auth.signUp({ email, password })); setAuthLoading(false); if (error) setAuthError(error.message); else setShowModal(false); }
-  async function signOut() { await supabase.auth.signOut(); setNotes(loadGuest()); clearEditor(); setMobileView('list'); }
 
   return (
     <>
@@ -167,10 +211,24 @@ export default function NotelyApp() {
           <NotesList notes={notes} activeId={activeId} onOpen={openNote} onDelete={handleDelete} className="notes-list" />
           <div className="sidebar-footer">{user ? <button className="auth-btn" onClick={signOut}>sign out</button> : <button className="auth-btn" onClick={() => setShowModal(true)}>sign in</button>}</div>
         </aside>
+        
+        {/* FIX: Combined the mobile/desktop rendering logic to prevent duplicates */}
         <main className="editor-area">
-          {mobileView === 'list' ? <NotesList notes={notes} activeId={activeId} onOpen={openNote} onDelete={handleDelete} className="mobile-notes-panel" /> : 
-          <Editor activeId={activeId} title={title} body={body} startedAt={startedAt} saveStatus={saveStatus} wordCount={wordCount} aiStatus={aiStatus} onTitleChange={onTitleChange} onBodyChange={onBodyChange} onTitleKeyDown={onTitleKeyDown} onDelete={handleDelete} onSummarize={handleSummarize} onExport={exportTxt} bodyRef={bodyRef} titleRef={titleRef} linkPreview={linkPreview} isLinkLoading={isLinkLoading} onExtract={handleExtract} />}
-          <div className="desktop-editor"><Editor activeId={activeId} title={title} body={body} startedAt={startedAt} saveStatus={saveStatus} wordCount={wordCount} aiStatus={aiStatus} onTitleChange={onTitleChange} onBodyChange={onBodyChange} onTitleKeyDown={onTitleKeyDown} onDelete={handleDelete} onSummarize={handleSummarize} onExport={() => exportTxt(title, body, startedAt)} bodyRef={bodyRef} titleRef={titleRef} linkPreview={linkPreview} isLinkLoading={isLinkLoading} onExtract={handleExtract} /></div>
+          {mobileView === 'list' ? (
+            <NotesList notes={notes} activeId={activeId} onOpen={handleOpen} onDelete={handleDelete} className="mobile-notes-panel" />
+          ) : (
+            <>
+              {/* This Editor handles the mobile view when not on 'list' */}
+              <div className="mobile-editor">
+                 <Editor activeId={activeId} title={title} body={body} startedAt={startedAt} saveStatus={saveStatus} wordCount={wordCount} aiStatus={aiStatus} onTitleChange={onTitleChange} onBodyChange={onBodyChange} onTitleKeyDown={onTitleKeyDown} onDelete={handleDelete} onSummarize={handleSummarize} onExport={() => exportTxt(title, body, startedAt)} bodyRef={bodyRef} titleRef={titleRef} linkPreview={linkPreview} isLinkLoading={isLinkLoading} onExtract={handleExtract} />
+              </div>
+              
+              {/* This Editor handles the desktop view */}
+              <div className="desktop-editor">
+                 <Editor activeId={activeId} title={title} body={body} startedAt={startedAt} saveStatus={saveStatus} wordCount={wordCount} aiStatus={aiStatus} onTitleChange={onTitleChange} onBodyChange={onBodyChange} onTitleKeyDown={onTitleKeyDown} onDelete={handleDelete} onSummarize={handleSummarize} onExport={() => exportTxt(title, body, startedAt)} bodyRef={bodyRef} titleRef={titleRef} linkPreview={linkPreview} isLinkLoading={isLinkLoading} onExtract={handleExtract} />
+              </div>
+            </>
+          )}
         </main>
       </div>
       {showModal && <div className="overlay" onClick={() => setShowModal(false)}><div className="modal" onClick={e => e.stopPropagation()}><div className="modal-tabs"><button onClick={() => setAuthMode('signin')}>Sign in</button><button onClick={() => setAuthMode('signup')}>Sign up</button></div><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" /><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" /><button className="modal-submit" onClick={handleAuth}>{authLoading ? '...' : authMode}</button></div></div>}
