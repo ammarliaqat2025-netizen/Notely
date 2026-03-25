@@ -538,7 +538,15 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
 
 }
 
-/* ── AI SUMMARY SIDEBAR (FINAL THEME FIX) ── */
+/* ── AI SUMMARY SIDEBAR (BRUTE FORCE FONT) ── */
+.summary-sidebar, 
+.summary-sidebar *, 
+.summary-sidebar span, 
+.summary-sidebar div, 
+.summary-sidebar p {
+  font-family: Georgia, 'Times New Roman', Times, serif !important;
+}
+
 .summary-sidebar {
   width: 320px;
   background-color: var(--paper-dark) !important;
@@ -548,8 +556,6 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   height: 100%;
   box-shadow: -2px 0 10px rgba(44, 36, 22, 0.02);
   z-index: 100;
-  /* Force font on the container itself */
-  font-family: Georgia, serif !important;
 }
 
 .summary-header {
@@ -566,46 +572,28 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink-faint);
-  /* Explicitly set for the label */
-  font-family: Georgia, serif !important;
+  color: var(--ink-faint) !important;
 }
 
-.summary-content, 
-.summary-content span, 
-.summary-content p {
+.summary-content {
   padding: 24px 28px;
   font-size: 15px;
-  line-height: 1.9 !important; /* Matches your note-body line height */
+  line-height: 1.9 !important;
   color: var(--ink-light) !important;
   background-color: transparent !important;
   overflow-y: auto;
-  /* Force font on the actual text elements */
-  font-family: Georgia, serif !important;
   white-space: pre-wrap;
-  font-style: italic;
+  font-style: italic !important; /* Forces the italic "AI thought" look */
 }
 
-.summary-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--ink-faint);
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.1s;
-}
-
-/* ── TYPEWRITER CURSOR FIX ── */
+/* ── CURSOR FIX ── */
 .summary-content span::after {
   content: '|';
   margin-left: 2px;
   color: var(--accent);
-  font-style: normal !important; /* Prevents the cursor from leaning */
+  font-style: normal !important;
   animation: blink 1s step-end infinite;
+  display: inline-block;
 }
 
 @keyframes blink {
