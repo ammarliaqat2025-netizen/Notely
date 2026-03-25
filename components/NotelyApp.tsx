@@ -165,7 +165,7 @@ export default function NotelyApp() {
     setBody(v); setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0);
     scheduleSave(title, v);
 
-    const matches = v.match(/(https?:\/\/[^\s]+)/g) || [];
+    const matches: string[] = v.match(/(https?:\/\/[^\s]+)/g) || [];
     setLinkPreviews((prev: PreviewData[]) => prev.filter((lp: PreviewData) => matches.includes(lp.url)));
 
     matches.forEach(url => {
