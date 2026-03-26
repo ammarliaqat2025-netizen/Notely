@@ -551,22 +551,35 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
 }
 
 .summary-header {
-  padding: 16px 20px;
+  padding: 24px 20px 16px; /* Matching your .sidebar-header padding */
   border-bottom: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start; /* Aligns items to the top for the dot placement */
   background-color: var(--paper-deep) !important;
 }
 
 .summary-label {
-  font-size: 10px;
+  position: relative;
+  font-size: 22px; /* Matching your .brand font-size */
   font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  /* Changed from ink-faint to ink-light for a darker, clearer look */
-  color: var(--ink-light) !important; 
+  letter-spacing: -0.5px;
+  color: var(--ink) !important; /* Darker ink to match the brand title */
   font-family: Georgia, serif !important;
+  text-transform: none !important; /* Removes the All-Caps */
+  padding-left: 0;
+}
+
+/* ── THE RED DOT ── */
+.summary-label::before {
+  content: '';
+  position: absolute;
+  top: -4px; /* Adjusts the "top left" placement */
+  left: -8px;
+  width: 6px;
+  height: 6px;
+  background-color: var(--accent); /* Using your #b5541c */
+  border-radius: 50%;
 }
 
 .summary-content {
@@ -578,19 +591,5 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   overflow-y: auto;
   font-family: Georgia, serif !important;
   white-space: pre-wrap;
-  /* Removed italic to keep the text clean and professional */
   font-style: normal !important; 
-}
-
-.summary-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--ink-faint);
-  font-size: 16px;
-  transition: color 0.2s;
-}
-
-.summary-close:hover {
-  color: var(--accent);
 }
