@@ -538,10 +538,10 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
 
 }
 
-/* ── AI SUMMARY SIDEBAR (MATCHING NOTE AREA) ── */
+/* ── AI SUMMARY SIDEBAR (FINAL MATCH) ── */
 .summary-sidebar {
   width: 320px !important;
-  /* Matches the background of your main editor area */
+  /* Matches the exact paper tone of your editor */
   background-color: var(--paper) !important; 
   border-left: 1px solid var(--line) !important;
   display: flex;
@@ -557,7 +557,6 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  /* Keeps the header slightly distinct but within the same palette */
   background-color: var(--paper) !important; 
 }
 
@@ -566,13 +565,13 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.5px;
-  /* Matches your main branding color */
-  color: var(--ink) !important; 
+  color: var(--ink) !important;
   font-family: Georgia, serif !important;
   text-transform: none !important;
   padding-left: 0;
 }
 
+/* The red dot branding */
 .summary-label::before {
   content: '';
   position: absolute;
@@ -588,11 +587,24 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   padding: 24px 28px;
   font-size: 15px;
   line-height: 1.9 !important;
-  /* Matches the exact font color of your .note-body */
+  /* Matches the note-body text color */
   color: var(--ink-light) !important; 
   background-color: transparent !important;
   overflow-y: auto;
   font-family: Georgia, serif !important;
   white-space: pre-wrap;
   font-style: normal !important;
+}
+
+.summary-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-faint);
+  font-size: 16px;
+  transition: color 0.2s;
+}
+
+.summary-close:hover {
+  color: var(--accent);
 }
