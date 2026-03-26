@@ -95,11 +95,16 @@ export default function NotelyApp() {
             <input className="note-title" placeholder="Title" value={activeNote.title} onChange={(e) => updateNote('title', e.target.value)} />
             
             <textarea 
-              className="note-body" 
-              placeholder="Start writing..." 
-              value={travelIndex !== -1 && activeNote.history[travelIndex] ? activeNote.history[travelIndex].content : activeNote.body}
-              onChange={(e) => updateNote('body', e.target.value)}
-            />
+  className="note-body" 
+  placeholder="Start writing..." 
+  /* Display history if scrubbing, otherwise show current body */
+  value={travelIndex !== -1 && activeNote.history[travelIndex] ? activeNote.history[travelIndex].content : activeNote.body}
+  onChange={(e) => {
+    /* CRITICAL: Reset travelIndex to -1 so the UI switches back to 'Live' mode as you type */
+    setTravelIndex(-1);
+    updateNote('body', e.target.value);
+  }}
+/>
 
             {/* THE PILL BAR */}
             <div className="time-travel-bar">
