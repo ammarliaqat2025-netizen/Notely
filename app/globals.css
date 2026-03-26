@@ -122,7 +122,7 @@ html, body {
 }
 .note-item:hover { background: var(--paper); }
 .note-item.active { background: var(--paper); border-color: var(--line); box-shadow: var(--shadow); }
-.note-item-title { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.note-item-title { font-size: 13.5px; font-weight: 500;color: var(--ink);font-family: Georgia, serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .note-item-preview { font-size: 11.5px; color: var(--ink-faint); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic; }
 
 .sidebar-footer { 
