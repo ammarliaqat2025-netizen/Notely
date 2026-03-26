@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Plus, Trash2, Search, Clock, Sparkles, X, 
   Loader2, Undo2, Download, Menu 
@@ -39,12 +39,8 @@ export default function NotelyApp() {
     setNotes(prev => prev.map(n => {
       if (n.id === activeNoteId) {
         const updated = { ...n, [field]: value, lastModified: Date.now() };
-        
-        if (field === 'body') {
-          // Save snapshots frequently (every 5 chars) for functional Time Travel
-          if (value.length % 5 === 0 || value.length === 1) {
-            updated.history = [...n.history, { content: value, timestamp: Date.now() }];
-          }
+        if (field === 'body' && (value.length % 5 === 0 || value.length === 1)) {
+          updated.history = [...n.history, { content: value, timestamp: Date.now() }];
         }
         return updated;
       }
@@ -77,10 +73,7 @@ export default function NotelyApp() {
               <div 
                 key={note.id} 
                 className={`note-item ${activeNoteId === note.id ? 'active' : ''}`} 
-                onClick={() => { 
-                  setActiveNoteId(note.id); 
-                  setTravelIndex(-1); // Reset to present when switching notes
-                }}
+                onClick={() => { setActiveNoteId(note.id); setTravelIndex(-1); }}
               >
                 <div className="note-item-title">{note.title || 'Untitled'}</div>
               </div>
@@ -90,11 +83,18 @@ export default function NotelyApp() {
 
         <div className="sidebar-footer">
           <div className="user-badge">Ammar Liaqat</div>
-          <button className="tool-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}><Menu size={18} /></button>
+          <button className="tool-btn" onClick={() => setIsSidebarOpen(false)}><Menu size={18} /></button>
         </div>
       </aside>
 
       <main className="editor-area">
+        {/* Floating Toggle Button - Appears only when sidebar is closed */}
+        {!isSidebarOpen && (
+          <button className="floating-menu-btn" onClick={() => setIsSidebarOpen(true)}>
+            <Menu size={20} />
+          </button>
+        )}
+
         {activeNote ? (
           <>
             <div className="toolbar">
@@ -112,10 +112,7 @@ export default function NotelyApp() {
               className="note-body" 
               placeholder="Start writing..." 
               value={travelIndex !== -1 && activeNote.history[travelIndex] ? activeNote.history[travelIndex].content : activeNote.body}
-              onChange={(e) => {
-                setTravelIndex(-1); // Snap back to present when typing
-                updateNote('body', e.target.value);
-              }}
+              onChange={(e) => { setTravelIndex(-1); updateNote('body', e.target.value); }}
             />
 
             <div className="time-travel-bar">
@@ -132,7 +129,7 @@ export default function NotelyApp() {
             </div>
           </>
         ) : (
-          <div className="empty-list" style={{fontSize: '20px'}}>Select a note to begin.</div>
+          <div className="empty-state">Select a note to begin.</div>
         )}
       </main>
     </div>
