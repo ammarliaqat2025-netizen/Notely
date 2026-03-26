@@ -125,7 +125,7 @@ body {
 .note-title { width: 100%; border: none; background: transparent; font-size: 26px; font-weight: 700; color: var(--ink); padding: 20px 32px 8px; outline: none; resize: none; font-family: Georgia, serif; flex-shrink: 0; }
 .note-body { flex: 1; width: 100%; border: none; background: transparent; font-size: 16px; color: var(--ink-light); padding: 8px 32px 60px; outline: none; resize: none; line-height: 1.9; overflow-y: auto; font-family: Georgia, serif; }
 
-/* ── TIME TRAVEL (ALWAYS VISIBLE) ── */
+/* Update only this section in your globals.css */
 .time-travel-bar { 
   position: absolute; 
   bottom: 24px; 
@@ -138,7 +138,25 @@ body {
   border-radius: 20px; 
   border: 1px solid var(--line); 
   box-shadow: var(--shadow); 
-  z-index: 20; 
+  z-index: 20;
+  /* This prevents the bar's empty space from blocking the editor */
+  pointer-events: auto; 
+}
+
+.note-body {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  color: var(--ink-light);
+  padding: 8px 32px 100px; /* Added extra bottom padding so text doesn't hide behind the bar */
+  outline: none;
+  resize: none;
+  line-height: 1.9;
+  overflow-y: auto;
+  font-family: Georgia, serif;
+}
 }
 .time-travel-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-faint); }
 .time-travel-scrubber { width: 100px; height: 2px; appearance: none; background: var(--line); outline: none; cursor: pointer; }
