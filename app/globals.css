@@ -538,47 +538,49 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
 
 }
 
-/* ── AI SUMMARY SIDEBAR ── */
+/* ── AI SUMMARY SIDEBAR (MATCHING NOTE AREA) ── */
 .summary-sidebar {
   width: 320px !important;
-  background-color: var(--paper-dark) !important;
+  /* Matches the background of your main editor area */
+  background-color: var(--paper) !important; 
   border-left: 1px solid var(--line) !important;
   display: flex;
   flex-direction: column;
   height: 100%;
-  box-shadow: -2px 0 10px rgba(44,36,22,0.02);
+  box-shadow: -2px 0 10px rgba(44, 36, 22, 0.02);
   z-index: 100;
 }
 
 .summary-header {
-  padding: 24px 20px 16px; /* Matching your .sidebar-header padding */
+  padding: 24px 20px 16px;
   border-bottom: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
-  align-items: flex-start; /* Aligns items to the top for the dot placement */
-  background-color: var(--paper-deep) !important;
+  align-items: flex-start;
+  /* Keeps the header slightly distinct but within the same palette */
+  background-color: var(--paper) !important; 
 }
 
 .summary-label {
   position: relative;
-  font-size: 22px; /* Matching your .brand font-size */
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.5px;
-  color: var(--ink) !important; /* Darker ink to match the brand title */
+  /* Matches your main branding color */
+  color: var(--ink) !important; 
   font-family: Georgia, serif !important;
-  text-transform: none !important; /* Removes the All-Caps */
+  text-transform: none !important;
   padding-left: 0;
 }
 
-/* ── THE RED DOT ── */
 .summary-label::before {
   content: '';
   position: absolute;
-  top: -4px; /* Adjusts the "top left" placement */
+  top: -4px;
   left: -8px;
   width: 6px;
   height: 6px;
-  background-color: var(--accent); /* Using your #b5541c */
+  background-color: var(--accent);
   border-radius: 50%;
 }
 
@@ -586,10 +588,11 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   padding: 24px 28px;
   font-size: 15px;
   line-height: 1.9 !important;
-  color: var(--ink-light) !important;
+  /* Matches the exact font color of your .note-body */
+  color: var(--ink-light) !important; 
   background-color: transparent !important;
   overflow-y: auto;
   font-family: Georgia, serif !important;
   white-space: pre-wrap;
-  font-style: normal !important; 
+  font-style: normal !important;
 }
