@@ -203,35 +203,69 @@ html, body {
   font-family: Georgia, serif; 
 }
 
-/* ── TIME TRAVEL BAR ── */
+/* --- TIME TRAVEL PILL --- */
 .time-travel-bar { 
   position: absolute; 
-  bottom: 30px; 
-  right: 40px; 
+  bottom: 40px; 
+  left: 50%;
+  transform: translateX(-50%);
   display: flex; 
   align-items: center; 
-  gap: 14px; 
-  background-color: var(--paper); 
-  padding: 10px 20px; 
-  border-radius: 30px; 
-  border: 1px solid var(--line); 
-  box-shadow: var(--shadow-lg); 
+  gap: 12px; 
+  background-color: #f1ede4; /* Match image parchment tone */
+  padding: 8px 20px; 
+  border-radius: 50px; 
+  border: 1px solid rgba(44,36,22,0.08);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.04);
   z-index: 50; 
-  pointer-events: auto;
-}
-.time-travel-label { 
-  font-size: 10px; 
-  font-weight: 700; 
-  text-transform: uppercase; 
-  letter-spacing: 0.12em; 
-  color: var(--ink-faint); 
-}
-.time-travel-scrubber { 
-  width: 120px; 
-  cursor: pointer; 
-  accent-color: var(--accent);
 }
 
+.time-travel-label { 
+  font-size: 11px; 
+  font-weight: 700; 
+  text-transform: uppercase; 
+  letter-spacing: 0.1em; 
+  color: #9a9080; 
+  font-family: Georgia, serif;
+}
+
+/* --- THE SCRUBBER TRACK --- */
+.time-travel-scrubber { 
+  -webkit-appearance: none;
+  width: 120px; 
+  height: 2px;
+  background: rgba(44,36,22,0.15);
+  cursor: pointer;
+  outline: none;
+}
+
+/* --- THE BROWN SLIDER THUMB (MATCHING IMAGE) --- */
+.time-travel-scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #b5541c; /* That specific warm brown/orange */
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.time-travel-scrubber::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: #b5541c;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}
+
+.time-travel-icon {
+  color: #9a9080;
+  display: flex;
+  align-items: center;
+  opacity: 0.8;
+}
 /* ── SUMMARY DRAWER ── */
 .summary-sidebar { 
   width: 320px; 
