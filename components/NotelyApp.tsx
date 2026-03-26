@@ -204,16 +204,17 @@ function Editor({
       </div>
 
       {aiSummary && (
-        <aside className="summary-sidebar" style={{ width: '320px', backgroundColor: '#fafaf9', display: 'flex', flexDirection: 'column', borderLeft: '1px solid #eee', position: 'relative' }}>
-          <div style={{ padding: '16px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff' }}>
-            <span style={{ fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#888' }}>AI Summary</span>
-            <button onClick={onClearSummary} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: '14px' }}>✕</button>
-          </div>
-          <div style={{ padding: '24px', fontSize: '13px', lineHeight: '1.7', color: '#333', overflowY: 'auto', fontFamily: 'serif', whiteSpace: 'pre-wrap' }}>
-            {aiSummary}
-          </div>
-        </aside>
-      )}
+  <aside className="summary-sidebar">
+    <div className="summary-header">
+      <span className="summary-label">AI Summary</span>
+      <button className="summary-close" onClick={onClearSummary}>✕</button>
+    </div>
+    <div className="summary-content">
+      {/* If you want the typewriter effect, wrap aiSummary in the component here */}
+      {aiSummary}
+    </div>
+  </aside>
+)}
     </div>
   )
 }
