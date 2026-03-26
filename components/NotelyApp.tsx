@@ -66,13 +66,30 @@ export default function NotelyApp() {
           <input className="search-input" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
         </div>
         <div className="notes-list">
-          {filteredNotes.length === 0 ? <div className="empty-list">No notes yet.<br />Hit + to begin.</div> : 
-            filteredNotes.map(note => (
-              <div key={note.id} className={`note-item ${activeNoteId === note.id ? 'active' : ''}`} onClick={() => { setActiveNoteId(note.id); setTravelIndex(note.history.length - 1); }}>
-                <div className="note-item-title">{note.title || 'Untitled'}</div>
-              </div>
-            ))
-          }
+          <div className="notes-list">
+  {filteredNotes.length === 0 ? (
+    <div className="empty-list">No notes yet.<br />Hit + to begin.</div>
+  ) : (
+    filteredNotes.map(note => (
+      <div 
+        key={note.id} 
+        className={`note-item ${activeNoteId === note.id ? 'active' : ''}`} 
+        onClick={() => { 
+          setActiveNoteId(note.id); 
+          setTravelIndex(note.history.length - 1); 
+        }}
+      >
+        <div className="note-item-title">{note.title || 'Untitled'}</div>
+        <div className="note-item-divider">—</div>
+        <div className="note-item-meta">
+          <Clock size={10} />
+          <span>{new Date(note.lastModified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()}</span>
+          <span className="meta-sep">just now</span>
+        </div>
+      </div>
+    ))
+  )}
+</div>
         </div>
         <div className="sidebar-footer">
           <div className="user-badge">Ammar Liaqat</div>
