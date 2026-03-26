@@ -4,6 +4,8 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import type { User } from '@supabase/supabase-js'
 
+/* ── 1. TYPE DEFINITIONS ── */
+
 interface Note {
   id: string
   user_id?: string
@@ -23,6 +25,35 @@ interface PreviewData {
   description?: string
   fullContent?: string
 }
+
+interface EditorProps {
+  activeId: string | null
+  title: string
+  body: string
+  startedAt: string | null
+  saveStatus: 'saved' | 'saving'
+  wordCount: number
+  aiStatus: string
+  onTitleChange: (v: string) => void
+  onBodyChange: (v: string) => void
+  onTitleKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  onDelete: (id: string, e: React.MouseEvent) => void
+  onSummarize: () => void
+  onExport: () => void
+  bodyRef: React.RefObject<HTMLTextAreaElement | null>
+  titleRef: React.RefObject<HTMLTextAreaElement | null>
+  linkPreviews: PreviewData[]
+  isLinkLoading: boolean
+  onExtract: (lp: PreviewData) => void
+  onDigest: (lp: PreviewData) => void
+  aiSummary: string
+  onClearSummary: () => void
+  history: string[]
+  historyIndex: number
+  onHistoryChange: (idx: number) => void
+}
+
+/* ── 2. UTILITY FUNCTIONS ── */
 
 function fmtDate(iso: string) {
   const d = new Date(iso)
@@ -62,15 +93,9 @@ function exportTxt(title: string, body: string, startedAt: string | null) {
   URL.revokeObjectURL(url)
 }
 
-interface NotesListProps {
-  notes: Note[]
-  activeId: string | null
-  onOpen: (n: Note) => void
-  onDelete: (id: string, e: React.MouseEvent) => void
-  className?: string
-}
+/* ── 3. COMPONENTS ── */
 
-function NotesList({ notes, activeId, onOpen, onDelete, className }: NotesListProps) {
+function NotesList({ notes, activeId, onOpen, onDelete, className }: { notes: Note[], activeId: string | null, onOpen: (n: Note) => void, onDelete: (id: string, e: React.MouseEvent) => void, className?: string }) {
   return (
     <div className={className}>
       {notes.length === 0
@@ -95,34 +120,11 @@ function NotesList({ notes, activeId, onOpen, onDelete, className }: NotesListPr
   )
 }
 
-interface EditorProps {
-  activeId: string | null
-  title: string
-  body: string
-  startedAt: string | null
-  saveStatus: 'saved' | 'saving'
-  wordCount: number
-  aiStatus: string
-  onTitleChange: (v: string) => void
-  onBodyChange: (v: string) => void
-  onTitleKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
-  onDelete: (id: string, e: React.MouseEvent) => void
-  onSummarize: () => void
-  onExport: () => void
-  bodyRef: React.RefObject<HTMLTextAreaElement | null>
-  titleRef: React.RefObject<HTMLTextAreaElement | null>
-  linkPreviews: PreviewData[]
-  isLinkLoading: boolean
-  onExtract: (lp: PreviewData) => void
-  aiSummary: string
-  onClearSummary: () => void
-}
-
 function Editor({
   activeId, title, body, startedAt, saveStatus, wordCount, aiStatus,
   onTitleChange, onBodyChange, onTitleKeyDown, onDelete,
   onSummarize, onExport, bodyRef, titleRef, linkPreviews, isLinkLoading, onExtract,
-  aiSummary, onClearSummary
+  onDigest, aiSummary, onClearSummary, history, historyIndex, onHistoryChange
 }: EditorProps) {
   if (!activeId) {
     return (
@@ -137,84 +139,56 @@ function Editor({
   }
 
   return (
-    <div className="editor-outer-wrap" style={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden' }}>
-      <div className="editor-main-column" style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', borderRight: aiSummary ? '1px solid #eee' : 'none' }}>
+    <div className="editor-outer-wrap" style={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden', position: 'relative' }}>
+      <div className="editor-main-column" style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', position: 'relative' }}>
         <div className="toolbar">
-          <button className="tool-btn" title="Delete note" onClick={e => onDelete(activeId, e)}>
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-              <path d="M2 3.5h9M5 3.5V2.5h3v1M5.5 6v4M7.5 6v4M3 3.5l.7 7h5.6l.7-7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
+          <button className="tool-btn" onClick={e => onDelete(activeId, e)}><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 3.5h9M5 3.5V2.5h3v1M5.5 6v4M7.5 6v4M3 3.5l.7 7h5.6l.7-7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
           <div className="tool-sep" />
-          <button className="tool-btn ai-btn" title="Summarize with AI" onClick={onSummarize} disabled={!body.trim() || !!aiSummary}>
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-              <path d="M6.5 1.5l1 2.5h2.5l-2 1.5.8 2.5-2.3-1.5-2.3 1.5.8-2.5-2-1.5H5.5z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
-            </svg>
-            Summarize
-          </button>
-          <button className="tool-btn ai-btn" title="Export as .txt" onClick={onExport}>
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-              <path d="M8 1.5H4a1 1 0 00-1 1v8a1 1 0 001 1h5a1 1 0 001-1V4.5L8 1.5z" stroke="currentColor" strokeWidth="1.1"/>
-            </svg>
-            Export
-          </button>
+          <button className="tool-btn ai-btn" onClick={onSummarize} disabled={!body.trim() || !!aiSummary}><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1.5l1 2.5h2.5l-2 1.5.8 2.5-2.3-1.5-2.3 1.5.8-2.5-2-1.5H5.5z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>Summarize</button>
+          <button className="tool-btn ai-btn" onClick={onExport}><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M8 1.5H4a1 1 0 00-1 1v8a1 1 0 001 1h5a1 1 0 001-1V4.5L8 1.5z" stroke="currentColor" strokeWidth="1.1"/></svg>Export</button>
           <span className="word-count">{wordCount}w</span>
           <span className={`save-status ${saveStatus}`}>{saveStatus === 'saved' ? '● saved' : '○ saving…'}</span>
         </div>
 
         {aiStatus && <div className="ai-status-bar">{aiStatus}</div>}
+        {startedAt && <div className="note-timestamp">⏱ {fmtTime(startedAt)} · {fmtFull(startedAt)}</div>}
         
-        {startedAt && (
-          <div className="note-timestamp">⏱ {fmtTime(startedAt)} · {fmtFull(startedAt)}</div>
-        )}
-        
-        <textarea
-          ref={titleRef}
-          className="note-title"
-          placeholder="Untitled"
-          value={title}
-          onChange={e => onTitleChange(e.target.value)}
-          onKeyDown={onTitleKeyDown}
-          rows={1}
-        />
-        <textarea
-          ref={bodyRef}
-          className="note-body"
-          placeholder="Start writing…"
-          value={body}
-          onChange={e => onBodyChange(e.target.value)}
-        />
+        <textarea ref={titleRef} className="note-title" placeholder="Untitled" value={title} onChange={e => onTitleChange(e.target.value)} onKeyDown={onTitleKeyDown} rows={1} />
+        <textarea ref={bodyRef} className="note-body" placeholder="Start writing…" value={body} onChange={e => onBodyChange(e.target.value)} />
 
         <div className="link-previews-container" style={{ padding: '0 24px 32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {isLinkLoading && <div style={{ fontSize: '11px', letterSpacing: '0.05em', color: '#a0a0a0', textTransform: 'uppercase' }}>Scanning links...</div>}
+          {isLinkLoading && <div style={{ fontSize: '11px', color: '#a0a0a0' }}>Scanning links...</div>}
           {linkPreviews.map((lp, idx) => (
-            <div key={lp.url + idx} className="link-card" style={{ display: 'flex', maxWidth: '540px', border: '1px solid #eee', borderRadius: '4px', backgroundColor: '#fafaf9', overflow: 'hidden' }}>
-              <div style={{ flex: 1, padding: '16px', minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <div style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a1a', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lp.title}</div>
-                <div style={{ fontSize: '11px', color: '#888', marginBottom: '12px', fontStyle: 'italic' }}>{lp.domain}</div>
+            <div key={lp.url + idx} className="link-card" style={{ display: 'flex', border: '1px solid #eee', borderRadius: '4px', backgroundColor: '#fafaf9', overflow: 'hidden' }}>
+              <div style={{ flex: 1, padding: '16px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>{lp.title}</div>
+                <div style={{ fontSize: '11px', color: '#888', fontStyle: 'italic', marginBottom: '12px' }}>{lp.domain}</div>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => onExtract(lp)} style={{ fontSize: '10px', padding: '6px 12px', backgroundColor: '#1a1a1a', color: '#fff', border: 'none', borderRadius: '2px', cursor: 'pointer', fontWeight: '500', textTransform: 'uppercase' }}>Clip Page</button>
-                  <button onClick={() => window.open(lp.url, '_blank')} style={{ fontSize: '10px', padding: '6px 12px', backgroundColor: 'transparent', color: '#666', border: '1px solid #ddd', borderRadius: '2px', cursor: 'pointer' }}>Visit</button>
+                  <button onClick={() => onExtract(lp)} style={{ fontSize: '10px', padding: '6px 12px', background: '#1a1a1a', color: '#fff', border: 'none' }}>Clip Page</button>
+                  <button onClick={() => onDigest(lp)} style={{ fontSize: '10px', padding: '6px 12px', background: 'transparent', color: '#b5541c', border: '1px solid #b5541c' }}>Digest</button>
                 </div>
               </div>
-              {lp.image && <div style={{ width: '120px', minWidth: '120px' }}><img src={lp.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /></div>}
             </div>
           ))}
         </div>
+
+        {history.length > 1 && (
+          <div className="time-travel-bar">
+            <span className="history-label">History</span>
+            <input type="range" min="0" max={history.length - 1} value={historyIndex} onChange={(e) => onHistoryChange(parseInt(e.target.value))} className="history-scrubber" />
+          </div>
+        )}
       </div>
 
       {aiSummary && (
-  <aside className="summary-sidebar">
-    <div className="summary-header">
-      <span className="summary-label">AI Summary</span>
-      <button className="summary-close" onClick={onClearSummary}>✕</button>
-    </div>
-    <div className="summary-content">
-      {/* If you want the typewriter effect, wrap aiSummary in the component here */}
-      {aiSummary}
-    </div>
-  </aside>
-)}
+        <aside className="summary-sidebar">
+          <div className="summary-header">
+            <span className="summary-label">Ai summary</span>
+            <button className="summary-close" onClick={onClearSummary}>✕</button>
+          </div>
+          <div className="summary-content">{aiSummary}</div>
+        </aside>
+      )}
     </div>
   )
 }
@@ -231,7 +205,6 @@ export default function NotelyApp() {
   const [wordCount, setWordCount] = useState(0)
   const [aiStatus, setAiStatus] = useState('')
   const [aiSummary, setAiSummary] = useState('')
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [showModal, setShowModal] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -239,9 +212,10 @@ export default function NotelyApp() {
   const [authLoading, setAuthLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [mobileView, setMobileView] = useState<'list' | 'editor'>('list')
-  
   const [linkPreviews, setLinkPreviews] = useState<PreviewData[]>([])
   const [isLinkLoading, setIsLinkLoading] = useState(false)
+  const [history, setHistory] = useState<string[]>([])
+  const [historyIndex, setHistoryIndex] = useState(0)
 
   const bodyRef = useRef<HTMLTextAreaElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
@@ -267,7 +241,30 @@ export default function NotelyApp() {
     }
   }, [user])
 
-  function clearEditor() { setActiveId(null); setTitle(''); setBody(''); setStartedAt(null); setWordCount(0); setAiStatus(''); setAiSummary(''); setLinkPreviews([]); }
+  // FEATURE 1: Deep Link Listener
+  useEffect(() => {
+    const handleMouseUp = () => {
+      const selection = window.getSelection()?.toString();
+      if (selection && selection.length > 5) {
+        const matches = notes.filter(n => n.id !== activeId && (n.body.toLowerCase().includes(selection.toLowerCase()) || n.title.toLowerCase().includes(selection.toLowerCase()))).slice(0, 3);
+        if (matches.length > 0) {
+          setAiSummary(`Potential Connections:\n\n` + matches.map(m => `• ${m.title || 'Untitled'}\n  "${m.body.slice(0, 100)}..."`).join('\n\n'));
+        }
+      }
+    };
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => document.removeEventListener('mouseup', handleMouseUp);
+  }, [notes, activeId]);
+
+  // FEATURE 3: History Sync
+  useEffect(() => {
+    if (saveStatus === 'saved' && body && history[history.length - 1] !== body) {
+      setHistory(prev => [...prev.slice(-19), body]);
+      setHistoryIndex(prev => Math.min(prev + 1, 19));
+    }
+  }, [saveStatus]);
+
+  function clearEditor() { setActiveId(null); setTitle(''); setBody(''); setStartedAt(null); setWordCount(0); setAiStatus(''); setAiSummary(''); setLinkPreviews([]); setHistory([]); }
 
   async function fetchCloud() {
     const res = await fetch('/api/notes')
@@ -279,7 +276,7 @@ export default function NotelyApp() {
   function openNote(note: Note) {
     setActiveId(note.id); setTitle(note.title); setBody(note.body); setStartedAt(note.started_at || null);
     setWordCount(note.body.trim() ? note.body.trim().split(/\s+/).length : 0);
-    setSaveStatus('saved'); setAiStatus(''); setAiSummary(''); setSidebarOpen(false); setMobileView('editor'); setLinkPreviews([]);
+    setSaveStatus('saved'); setAiStatus(''); setAiSummary(''); setSidebarOpen(false); setMobileView('editor'); setLinkPreviews([]); setHistory([note.body]); setHistoryIndex(0);
   }
 
   async function newNote() {
@@ -348,13 +345,23 @@ export default function NotelyApp() {
     try {
       const res = await fetch('/api/link-preview', { method: 'POST', body: JSON.stringify({ url: lp.url }) });
       const data = await res.json();
-      if (!res.ok) throw new Error();
       const divider = `\n\n─── ${data.domain.toUpperCase()} CLIP ───\n`;
       const newBody = body + divider + (data.fullContent || '');
       setBody(newBody); scheduleSave(title, newBody, startedAt);
-      setLinkPreviews(prev => prev.filter(p => p.url !== lp.url));
       setAiStatus('');
-    } catch { setAiStatus('✦ Extraction failed.'); setTimeout(() => setAiStatus(''), 3000); }
+    } catch { setAiStatus('✦ Failed'); }
+  }
+
+  async function handleDigest(lp: PreviewData) {
+    setAiStatus('✦ Digesting...');
+    try {
+      const res = await fetch('/api/summarize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: lp.title, body: lp.fullContent }) });
+      const data = await res.json();
+      const divider = `\n\n─── ${lp.domain.toUpperCase()} DIGEST ───\n`;
+      const newBody = body + divider + data.summary + '\n';
+      setBody(newBody); scheduleSave(title, newBody, startedAt);
+      setAiStatus('');
+    } catch { setAiStatus('✦ Failed'); }
   }
 
   async function handleSummarize() {
@@ -362,9 +369,8 @@ export default function NotelyApp() {
     try {
       const response = await fetch('/api/summarize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, body }) })
       const data = await response.json()
-      setAiSummary(data.summary)
-      setAiStatus('');
-    } catch (err) { setAiStatus('✦ Error'); setTimeout(() => setAiStatus(''), 3000) }
+      setAiSummary(data.summary); setAiStatus('');
+    } catch { setAiStatus('✦ Error'); }
   }
 
   const handleDelete = useCallback(async (id: string, e: React.MouseEvent) => {
@@ -381,34 +387,25 @@ export default function NotelyApp() {
     setShowModal(false); setEmail(''); setPassword('')
   }
 
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
+
   return (
     <>
       <div className="mobile-header">
         {mobileView === 'list' ? (
-          <>
-            <div className="mobile-header-brand">Notely<span>.</span></div>
-            <div style={{ display: 'flex', gap: 2 }}>
-              <button className="mobile-btn" onClick={() => setShowModal(true)}><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.4"/><path d="M3 17c0-3.866 3.134-7 7-7s7 3.134 7 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg></button>
-              <button className="mobile-btn" onClick={newNote}><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg></button>
-            </div>
-          </>
+          <><div className="mobile-header-brand">Notely<span>.</span></div><div style={{ display: 'flex', gap: 2 }}><button className="mobile-btn" onClick={() => setShowModal(true)}><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.4"/><path d="M3 17c0-3.866 3.134-7 7-7s7 3.134 7 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg></button><button className="mobile-btn" onClick={newNote}><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg></button></div></>
         ) : (
-          <>
-            <button className="mobile-back-btn" onClick={() => { if (saveTimer.current) { clearTimeout(saveTimer.current); doSave(title, body, startedAt) } setMobileView('list') }}><svg width="17" height="17" viewBox="0 0 17 17" fill="none"><path d="M11 3.5L6 8.5l5 5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>Notes</button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span className={`save-status ${saveStatus}`} style={{ fontSize: 10 }}>{saveStatus === 'saved' ? '● saved' : '○ saving…'}</span>{activeId && <button className="mobile-btn" onClick={e => { handleDelete(activeId, e); setMobileView('list') }}><svg width="17" height="17" viewBox="0 0 17 17" fill="none"><path d="M3 5h11M6.5 5V4h4v1M7 8v5M10 8v5M3.5 5l1 9h7l1-9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg></button>}</div>
-          </>
+          <><button className="mobile-back-btn" onClick={() => { if (saveTimer.current) { clearTimeout(saveTimer.current); doSave(title, body, startedAt) } setMobileView('list') }}><svg width="17" height="17" viewBox="0 0 17 17" fill="none"><path d="M11 3.5L6 8.5l5 5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>Notes</button><div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span className={`save-status ${saveStatus}`} style={{ fontSize: 10 }}>{saveStatus === 'saved' ? '● saved' : '○ saving…'}</span>{activeId && <button className="mobile-btn" onClick={e => { handleDelete(activeId, e); setMobileView('list') }}><svg width="17" height="17" viewBox="0 0 17 17" fill="none"><path d="M3 5h11M6.5 5V4h4v1M7 8v5M10 8v5M3.5 5l1 9h7l1-9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg></button>}</div></>
         )}
       </div>
 
       <div className="app">
-        <div className={`sidebar-backdrop ${sidebarOpen ? 'visible' : ''}`} onClick={() => setSidebarOpen(false)} />
         <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
           <div className="sidebar-header">
             <div className="brand">Notely<span className="brand-dot">.</span></div>
             <div className="brand-sub">just write — nothing else</div>
             <button className="new-btn" onClick={newNote}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>New note</button>
           </div>
-          <div className="notes-count">{notes.length > 0 ? `${notes.length} note${notes.length !== 1 ? 's' : ''}` : ''}</div>
           <NotesList notes={notes} activeId={activeId} onOpen={openNote} onDelete={handleDelete} className="notes-list" />
           <div className="sidebar-footer">
             <div className="user-badge">{user ? <span className="user-email">{user.email?.split('@')[0]}</span> : 'guest mode'}</div>
@@ -424,8 +421,10 @@ export default function NotelyApp() {
               activeId={activeId} title={title} body={body} startedAt={startedAt} saveStatus={saveStatus} wordCount={wordCount} aiStatus={aiStatus}
               onTitleChange={onTitleChange} onBodyChange={onBodyChange} onTitleKeyDown={e => e.key === 'Enter' && (e.preventDefault(), bodyRef.current?.focus())} 
               onDelete={handleDelete} onSummarize={handleSummarize} onExport={() => exportTxt(title, body, startedAt)} 
-              bodyRef={bodyRef} titleRef={titleRef} linkPreviews={linkPreviews} isLinkLoading={isLinkLoading} onExtract={handleExtract}
+              bodyRef={bodyRef} titleRef={titleRef} linkPreviews={linkPreviews} isLinkLoading={isLinkLoading} 
+              onExtract={handleExtract} onDigest={handleDigest}
               aiSummary={aiSummary} onClearSummary={() => setAiSummary('')}
+              history={history} historyIndex={historyIndex} onHistoryChange={(idx) => { setHistoryIndex(idx); setBody(history[idx]); }}
             />
           )}
         </main>
@@ -434,19 +433,15 @@ export default function NotelyApp() {
       {showModal && (
         <div className="overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
             <div className="modal-title">Welcome back.</div>
-            <div className="modal-sub">Your notes, wherever you are.</div>
             <div className="modal-tabs">
-              <button className={`modal-tab ${authMode === 'signin' ? 'active' : ''}`} onClick={() => { setAuthMode('signin'); setAuthError('') }}>Sign in</button>
-              <button className={`modal-tab ${authMode === 'signup' ? 'active' : ''}`} onClick={() => { setAuthMode('signup'); setAuthError('') }}>Sign up</button>
+              <button className={`modal-tab ${authMode === 'signin' ? 'active' : ''}`} onClick={() => setAuthMode('signin')}>Sign in</button>
+              <button className={`modal-tab ${authMode === 'signup' ? 'active' : ''}`} onClick={() => setAuthMode('signup')}>Sign up</button>
             </div>
-            <div className="field"><label>EMAIL</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></div>
-            <div className="field"><label>PASSWORD</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'} onKeyDown={e => e.key === 'Enter' && handleAuth()} /></div>
+            <div className="field"><label>EMAIL</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} /></div>
+            <div className="field"><label>PASSWORD</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAuth()} /></div>
             {authError && <div className="auth-error">{authError}</div>}
-            <button className="modal-submit" onClick={handleAuth} disabled={authLoading}>{authLoading ? 'Loading…' : authMode === 'signin' ? 'Sign in' : 'Create account'}</button>
-            <div className="modal-divider">or continue without an account</div>
-            <button className="modal-guest" onClick={() => setShowModal(false)}>Continue as guest — saves in this browser</button>
+            <button className="modal-submit" onClick={handleAuth} disabled={authLoading}>{authLoading ? 'Loading…' : 'Go'}</button>
           </div>
         </div>
       )}
