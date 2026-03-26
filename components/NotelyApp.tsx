@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Plus, Trash2, Search, Clock, Sparkles, X, 
   Loader2, Undo2, Download, Menu 
@@ -31,7 +31,7 @@ export default function NotelyApp() {
     };
     setNotes([newNote, ...notes]);
     setActiveNoteId(newNote.id);
-    setTravelIndex(0);
+    setTravelIndex(-1);
   };
 
   const updateNote = (field: 'title' | 'body', value: string) => {
@@ -39,9 +39,12 @@ export default function NotelyApp() {
     setNotes(prev => prev.map(n => {
       if (n.id === activeNoteId) {
         const updated = { ...n, [field]: value, lastModified: Date.now() };
-        if (field === 'body' && value.length % 20 === 0) {
-          updated.history = [...n.history, { content: value, timestamp: Date.now() }];
-          setTravelIndex(updated.history.length - 1);
+        
+        if (field === 'body') {
+          // Save snapshots frequently (every 5 chars) for functional Time Travel
+          if (value.length % 5 === 0 || value.length === 1) {
+            updated.history = [...n.history, { content: value, timestamp: Date.now() }];
+          }
         }
         return updated;
       }
@@ -66,7 +69,6 @@ export default function NotelyApp() {
           <input className="search-input" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
         </div>
 
-        {/* --- UPDATED MINIMAL NOTES LIST --- */}
         <div className="notes-list">
           {filteredNotes.length === 0 ? (
             <div className="empty-list">No notes yet.<br />Hit + to begin.</div>
@@ -77,7 +79,7 @@ export default function NotelyApp() {
                 className={`note-item ${activeNoteId === note.id ? 'active' : ''}`} 
                 onClick={() => { 
                   setActiveNoteId(note.id); 
-                  setTravelIndex(note.history.length - 1); 
+                  setTravelIndex(-1); // Reset to present when switching notes
                 }}
               >
                 <div className="note-item-title">{note.title || 'Untitled'}</div>
@@ -85,7 +87,6 @@ export default function NotelyApp() {
             ))
           )}
         </div>
-        {/* --- END UPDATED SECTION --- */}
 
         <div className="sidebar-footer">
           <div className="user-badge">Ammar Liaqat</div>
@@ -100,7 +101,7 @@ export default function NotelyApp() {
               <button className="tool-btn"><Undo2 size={18} /></button>
               <button className="tool-btn" onClick={() => {}}><Download size={18} /></button>
               <button className="tool-btn" onClick={() => deleteNote(activeNote.id)}><Trash2 size={18} /></button>
-              <button className="tool-btn ai-btn" onClick={() => { setIsSummarizing(true); setTimeout(() => { setSummary("This note focuses on the royal aesthetic and narrative-driven storytelling for the Zururi brand."); setIsSummarizing(false); }, 1000); }}>
+              <button className="tool-btn ai-btn" onClick={() => { setIsSummarizing(true); setTimeout(() => { setSummary("Summary active..."); setIsSummarizing(false); }, 1000); }}>
                 {isSummarizing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} <span>AI Summary</span>
               </button>
             </div>
@@ -112,29 +113,26 @@ export default function NotelyApp() {
               placeholder="Start writing..." 
               value={travelIndex !== -1 && activeNote.history[travelIndex] ? activeNote.history[travelIndex].content : activeNote.body}
               onChange={(e) => {
-                setTravelIndex(-1);
+                setTravelIndex(-1); // Snap back to present when typing
                 updateNote('body', e.target.value);
               }}
             />
 
             <div className="time-travel-bar">
-              <span className="time-travel-label">Time Travel</span>
-              <input type="range" className="time-travel-scrubber" min="0" max={activeNote.history.length - 1} value={travelIndex} onChange={(e) => setTravelIndex(parseInt(e.target.value))} />
+              <span className="time-travel-label">TIME TRAVEL</span>
+              <input 
+                type="range" 
+                className="time-travel-scrubber" 
+                min="0" 
+                max={activeNote.history.length > 0 ? activeNote.history.length - 1 : 0} 
+                value={travelIndex === -1 ? activeNote.history.length - 1 : travelIndex} 
+                onChange={(e) => setTravelIndex(parseInt(e.target.value))} 
+              />
               <div className="time-travel-icon"><Clock size={16} /></div>
             </div>
           </>
         ) : (
           <div className="empty-list" style={{fontSize: '20px'}}>Select a note to begin.</div>
-        )}
-
-        {summary && (
-          <div style={{position: 'absolute', right: 0, top: 0, bottom: 0, width: '320px', background: '#f5f0e8', borderLeft: '1px solid rgba(0,0,0,0.1)', zIndex: 100, display: 'flex', flexDirection: 'column'}}>
-            <div style={{padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-              <b style={{fontSize: '18px'}}>Summary</b>
-              <button onClick={() => setSummary(null)} style={{background:'none', border:'none', cursor: 'pointer'}}><X size={20}/></button>
-            </div>
-            <div style={{padding: '24px', fontStyle: 'italic', lineHeight: '1.6'}}>{summary}</div>
-          </div>
         )}
       </main>
     </div>
