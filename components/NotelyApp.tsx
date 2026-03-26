@@ -1,19 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+"use client";
+
+import React, { useState, useEffect } from 'react';
 import { 
-  Plus, 
-  Trash2, 
-  Search, 
-  Clock, 
-  Sparkles, 
-  ChevronRight, 
-  LogOut, 
-  Menu, 
-  X,
-  Loader2,
-  Undo2
+  Plus, Trash2, Search, Clock, Sparkles, X, 
+  Loader2, Undo2, Download, Menu 
 } from 'lucide-react';
 
-// --- TYPES ---
+// --- Types ---
 interface NoteVersion {
   content: string;
   timestamp: number;
@@ -28,7 +21,7 @@ interface Note {
 }
 
 export default function NotelyApp() {
-  // --- STATE ---
+  // --- State ---
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -37,14 +30,14 @@ export default function NotelyApp() {
   const [summary, setSummary] = useState<string | null>(null);
   const [travelIndex, setTravelIndex] = useState<number>(-1);
 
-  // --- DERIVED STATE ---
+  // --- Derived Data ---
   const activeNote = notes.find(n => n.id === activeNoteId);
   const filteredNotes = notes.filter(n => 
     n.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
     n.body.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // --- ACTIONS ---
+  // --- Handlers ---
   const createNote = () => {
     const newNote: Note = {
       id: Date.now().toString(),
@@ -60,74 +53,63 @@ export default function NotelyApp() {
 
   const updateNote = (field: 'title' | 'body', value: string) => {
     if (!activeNoteId) return;
-    
     setNotes(prev => prev.map(n => {
       if (n.id === activeNoteId) {
-        const updatedNote = { 
-          ...n, 
-          [field]: value, 
-          lastModified: Date.now() 
-        };
-        
-        // Push to history if body changed significantly or every 10th char
-        if (field === 'body' && value.length % 10 === 0) {
-          updatedNote.history = [...n.history, { content: value, timestamp: Date.now() }];
-          setTravelIndex(updatedNote.history.length - 1);
+        const updated = { ...n, [field]: value, lastModified: Date.now() };
+        // Create history snapshot every 20 characters to keep it clean
+        if (field === 'body' && value.length % 20 === 0) {
+          updated.history = [...n.history, { content: value, timestamp: Date.now() }];
+          setTravelIndex(updated.history.length - 1);
         }
-        return updatedNote;
+        return updated;
       }
       return n;
     }));
   };
 
-  const deleteNote = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const deleteNote = (id: string) => {
     setNotes(prev => prev.filter(n => n.id !== id));
     if (activeNoteId === id) setActiveNoteId(null);
   };
 
-  const handleTimeTravel = (index: number) => {
-    setTravelIndex(index);
-    if (activeNote) {
-      const historicContent = activeNote.history[index].content;
-      // We don't overwrite the actual note body here to prevent data loss,
-      // but in a full implementation, you'd "Restore" this version.
-    }
+  const exportNote = () => {
+    if (!activeNote) return;
+    const blob = new Blob([activeNote.body], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${activeNote.title || 'Untitled'}.txt`;
+    a.click();
   };
 
-  const generateSummary = async () => {
-    if (!activeNote || activeNote.body.length < 20) return;
+  const handleSummarize = () => {
+    if (!activeNote || activeNote.body.length < 10) return;
     setIsSummarizing(true);
-    // Simulate AI Delay
     setTimeout(() => {
-      setSummary(`This note explores the core concepts of your project. Key themes include efficiency, royal aesthetics for Zururi, and structural organization.`);
+      setSummary("Your note focuses on structural organization and creative workflows. It maintains a clean, minimalist aesthetic suitable for high-level consulting.");
       setIsSummarizing(false);
-    }, 1500);
+    }, 1200);
   };
 
   return (
     <div className="app">
-      {/* MOBILE HEADER */}
-      <header className="mobile-header">
-        <button className="mobile-btn" onClick={() => setIsSidebarOpen(true)}>
-          <Menu size={20} />
-        </button>
-        <div className="mobile-header-brand">Notely<span>.</span></div>
-        <button className="mobile-btn" onClick={createNote}>
-          <Plus size={20} />
-        </button>
-      </header>
-
-      {/* SIDEBAR */}
+      {/* Sidebar Section */}
       <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <div className="brand">Notely<span className="brand-dot">.</span></div>
           <div className="brand-sub">just write — nothing else</div>
-          
           <button className="new-btn" onClick={createNote}>
-            <Plus size={16} />
-            <span>New note</span>
+            <Plus size={16} /> <span>New note</span>
           </button>
+        </div>
+
+        <div className="search-container">
+          <input 
+            className="search-input" 
+            placeholder="Search notes..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
 
         <div className="notes-list">
@@ -143,17 +125,10 @@ export default function NotelyApp() {
                 onClick={() => {
                   setActiveNoteId(note.id);
                   setTravelIndex(note.history.length - 1);
-                  if (window.innerWidth < 640) setIsSidebarOpen(false);
                 }}
               >
                 <div className="note-item-title">{note.title || 'Untitled'}</div>
-                <div className="note-item-preview">{note.body || 'No content yet...'}</div>
-                <div className="note-item-date">
-                  {new Date(note.lastModified).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                </div>
-                <button className="note-del" onClick={(e) => deleteNote(note.id, e)}>
-                  <Trash2 size={13} />
-                </button>
+                <div className="note-item-preview">{note.body || 'No content...'}</div>
               </div>
             ))
           )}
@@ -161,90 +136,72 @@ export default function NotelyApp() {
 
         <div className="sidebar-footer">
           <div className="user-badge">Ammar Liaqat</div>
-          <button className="auth-btn">Log out</button>
+          <button className="tool-btn" title="Menu" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+            <Menu size={16} />
+          </button>
         </div>
       </aside>
 
-      {/* EDITOR AREA */}
+      {/* Main Editor Section */}
       <main className="editor-area">
         {activeNote ? (
-          <div className="editor-main-column">
+          <>
             <div className="toolbar">
-              <button className="tool-btn" title="Undo"><Undo2 size={16} /></button>
+              <button className="tool-btn" title="Undo"><Undo2 size={18} /></button>
+              <button className="tool-btn" title="Export" onClick={exportNote}><Download size={18} /></button>
+              <button className="tool-btn" title="Delete" onClick={() => deleteNote(activeNote.id)}><Trash2 size={18} /></button>
               <div className="tool-sep" />
-              <button 
-                className="tool-btn ai-btn" 
-                onClick={generateSummary}
-                disabled={isSummarizing}
-              >
-                {isSummarizing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+              <button className="tool-btn ai-btn" onClick={handleSummarize} disabled={isSummarizing}>
+                {isSummarizing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                 <span>AI Summary</span>
               </button>
-              
-              <div className="word-count">
-                {activeNote.body.split(/\s+/).filter(Boolean).length} words
-              </div>
             </div>
 
-            {isSummarizing && <div className="ai-status-bar">AI is reading your thoughts...</div>}
-
             <input 
-              className="note-title"
-              placeholder="Title"
-              value={activeNote.title}
-              onChange={(e) => updateNote('title', e.target.value)}
+              className="note-title" 
+              placeholder="Title" 
+              value={activeNote.title} 
+              onChange={(e) => updateNote('title', e.target.value)} 
             />
             
             <textarea 
-              className="note-body"
-              placeholder="Start writing..."
-              value={travelIndex !== -1 && activeNote.history[travelIndex] 
-                ? activeNote.history[travelIndex].content 
-                : activeNote.body
-              }
+              className="note-body" 
+              placeholder="Start writing..." 
+              value={travelIndex !== -1 && activeNote.history[travelIndex] ? activeNote.history[travelIndex].content : activeNote.body}
               onChange={(e) => updateNote('body', e.target.value)}
             />
 
-            {/* TIME TRAVEL BAR - ALWAYS VISIBLE */}
+            {/* Permanent Time Travel Bar */}
             <div className="time-travel-bar">
-              <div className="time-travel-label">Time Travel</div>
+              <span className="time-travel-label">Time Travel</span>
               <input 
                 type="range" 
-                className="time-travel-scrubber"
+                className="time-travel-scrubber" 
                 min="0" 
                 max={activeNote.history.length - 1} 
-                value={travelIndex}
-                onChange={(e) => handleTimeTravel(parseInt(e.target.value))}
+                value={travelIndex} 
+                onChange={(e) => setTravelIndex(parseInt(e.target.value))} 
               />
-              <Clock size={12} color="#9a9080" />
+              <Clock size={16} color="#9a9080" />
             </div>
-          </div>
+          </>
         ) : (
           <div className="empty-list" style={{ fontSize: '18px' }}>
-            Select a note to view or edit.
+            Select a note or create a new one to begin.
           </div>
         )}
 
-        {/* SUMMARY DRAWER */}
+        {/* AI Summary Sidebar */}
         {summary && (
           <div className="summary-sidebar">
             <div className="summary-header">
               <span className="summary-label">Summary</span>
-              <button className="summary-close" onClick={() => setSummary(null)}>
-                <X size={18} />
-              </button>
+              <button className="tool-btn" onClick={() => setSummary(null)}><X size={20} /></button>
             </div>
-            <div className="summary-content">
-              {summary}
-            </div>
+            <div className="summary-content">{summary}</div>
           </div>
         )}
       </main>
-
-      {/* MOBILE OVERLAY */}
-      {isSidebarOpen && window.innerWidth < 640 && (
-        <div className="overlay" onClick={() => setIsSidebarOpen(false)} />
-      )}
     </div>
   );
 }
