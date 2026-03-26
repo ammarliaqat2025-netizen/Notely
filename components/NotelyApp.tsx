@@ -65,8 +65,8 @@ export default function NotelyApp() {
         <div className="search-container">
           <input className="search-input" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
         </div>
+        <div className="notes-list">
           <div className="notes-list">
-  <div className="notes-list">
   {filteredNotes.length === 0 ? (
     <div className="empty-list">No notes yet.<br />Hit + to begin.</div>
   ) : (
@@ -79,12 +79,16 @@ export default function NotelyApp() {
           setTravelIndex(note.history.length - 1); 
         }}
       >
-        {/* Only the title remains for that minimal "Pic 2" look */}
         <div className="note-item-title">{note.title || 'Untitled'}</div>
+        <div className="note-item-divider">—</div>
+        <div className="note-item-meta">
+          <Clock size={10} />
+          <span>{new Date(note.lastModified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()}</span>
+          <span className="meta-sep">just now</span>
+        </div>
       </div>
     ))
   )}
-</div>
 </div>
         </div>
         <div className="sidebar-footer">
