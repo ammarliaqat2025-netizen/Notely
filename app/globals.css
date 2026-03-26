@@ -538,24 +538,18 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
 
 }
 
-/* ── AI SUMMARY SIDEBAR (BRUTE FORCE FONT) ── */
-.summary-sidebar, 
-.summary-sidebar *, 
-.summary-sidebar span, 
-.summary-sidebar div, 
-.summary-sidebar p {
-  font-family: Georgia, 'Times New Roman', Times, serif !important;
-}
-
-.summary-sidebar {
-  width: 320px;
+/* ── AI SUMMARY SIDEBAR ── */
+/* This targets the sidebar and everything inside it specifically */
+.summary-sidebar,
+[data-sidebar="ai-summary"] {
+  width: 320px !important;
   background-color: var(--paper-dark) !important;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--line) !important;
   display: flex;
   flex-direction: column;
   height: 100%;
   box-shadow: -2px 0 10px rgba(44, 36, 22, 0.02);
-  z-index: 100;
+  font-family: Georgia, serif !important;
 }
 
 .summary-header {
@@ -573,6 +567,7 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-faint) !important;
+  font-family: Georgia, serif !important;
 }
 
 .summary-content {
@@ -582,18 +577,18 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   color: var(--ink-light) !important;
   background-color: transparent !important;
   overflow-y: auto;
+  font-family: Georgia, serif !important;
   white-space: pre-wrap;
-  font-style: italic !important; /* Forces the italic "AI thought" look */
+  font-style: italic; /* The Zururi/Notely aesthetic */
 }
 
-/* ── CURSOR FIX ── */
+/* ── THE TYPEWRITER CURSOR ── */
 .summary-content span::after {
   content: '|';
   margin-left: 2px;
   color: var(--accent);
   font-style: normal !important;
   animation: blink 1s step-end infinite;
-  display: inline-block;
 }
 
 @keyframes blink {
