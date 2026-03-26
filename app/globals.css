@@ -200,7 +200,11 @@ html, body {
   resize: none; 
   line-height: 1.9; 
   overflow-y: auto; 
-  font-family: Georgia, serif; 
+  font-family: Georgia, serif;
+  
+  /* ADD THESE TWO LINES */
+  position: relative;
+  z-index: 1;
 }
 
 /* --- TIME TRAVEL PILL --- */
