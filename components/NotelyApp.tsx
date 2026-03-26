@@ -65,32 +65,28 @@ export default function NotelyApp() {
         <div className="search-container">
           <input className="search-input" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
         </div>
+
+        {/* --- UPDATED MINIMAL NOTES LIST --- */}
         <div className="notes-list">
-          <div className="notes-list">
-  {filteredNotes.length === 0 ? (
-    <div className="empty-list">No notes yet.<br />Hit + to begin.</div>
-  ) : (
-    filteredNotes.map(note => (
-      <div 
-        key={note.id} 
-        className={`note-item ${activeNoteId === note.id ? 'active' : ''}`} 
-        onClick={() => { 
-          setActiveNoteId(note.id); 
-          setTravelIndex(note.history.length - 1); 
-        }}
-      >
-        <div className="note-item-title">{note.title || 'Untitled'}</div>
-        <div className="note-item-divider">—</div>
-        <div className="note-item-meta">
-          <Clock size={10} />
-          <span>{new Date(note.lastModified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()}</span>
-          <span className="meta-sep">just now</span>
+          {filteredNotes.length === 0 ? (
+            <div className="empty-list">No notes yet.<br />Hit + to begin.</div>
+          ) : (
+            filteredNotes.map(note => (
+              <div 
+                key={note.id} 
+                className={`note-item ${activeNoteId === note.id ? 'active' : ''}`} 
+                onClick={() => { 
+                  setActiveNoteId(note.id); 
+                  setTravelIndex(note.history.length - 1); 
+                }}
+              >
+                <div className="note-item-title">{note.title || 'Untitled'}</div>
+              </div>
+            ))
+          )}
         </div>
-      </div>
-    ))
-  )}
-</div>
-        </div>
+        {/* --- END UPDATED SECTION --- */}
+
         <div className="sidebar-footer">
           <div className="user-badge">Ammar Liaqat</div>
           <button className="tool-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}><Menu size={18} /></button>
@@ -112,18 +108,15 @@ export default function NotelyApp() {
             <input className="note-title" placeholder="Title" value={activeNote.title} onChange={(e) => updateNote('title', e.target.value)} />
             
             <textarea 
-  className="note-body" 
-  placeholder="Start writing..." 
-  /* Display history if scrubbing, otherwise show current body */
-  value={travelIndex !== -1 && activeNote.history[travelIndex] ? activeNote.history[travelIndex].content : activeNote.body}
-  onChange={(e) => {
-    /* CRITICAL: Reset travelIndex to -1 so the UI switches back to 'Live' mode as you type */
-    setTravelIndex(-1);
-    updateNote('body', e.target.value);
-  }}
-/>
+              className="note-body" 
+              placeholder="Start writing..." 
+              value={travelIndex !== -1 && activeNote.history[travelIndex] ? activeNote.history[travelIndex].content : activeNote.body}
+              onChange={(e) => {
+                setTravelIndex(-1);
+                updateNote('body', e.target.value);
+              }}
+            />
 
-            {/* THE PILL BAR */}
             <div className="time-travel-bar">
               <span className="time-travel-label">Time Travel</span>
               <input type="range" className="time-travel-scrubber" min="0" max={activeNote.history.length - 1} value={travelIndex} onChange={(e) => setTravelIndex(parseInt(e.target.value))} />
