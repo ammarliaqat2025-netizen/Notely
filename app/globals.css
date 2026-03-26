@@ -608,3 +608,61 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
 .summary-close:hover {
   color: var(--accent);
 }
+
+/* ── TIME TRAVEL (NEW) ── */
+.time-travel-bar {
+  position: absolute;
+  bottom: 24px;
+  right: 40px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: var(--paper);
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 10;
+}
+
+.editor-main-column:hover .time-travel-bar {
+  opacity: 0.6;
+}
+
+.time-travel-bar:hover {
+  opacity: 1;
+}
+
+.history-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  font-family: Georgia, serif;
+}
+
+.history-scrubber {
+  width: 80px;
+  height: 2px;
+  appearance: none;
+  background: var(--line);
+  outline: none;
+  cursor: pointer;
+}
+
+.history-scrubber::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  background: var(--accent); /* #b5541c */
+  border-radius: 50%;
+  border: none;
+}
+
+/* Ensure the Digest button in link cards stays sharp */
+.link-card button:hover {
+  opacity: 0.8;
+}
