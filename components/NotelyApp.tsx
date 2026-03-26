@@ -171,7 +171,7 @@ export default function NotelyApp() {
               onChange={(e) => updateNote('body', e.target.value)}
             />
 
-            {/* Permanent Time Travel Bar */}
+            {/* Adjusted Permanent Time Travel Bar */}
             <div className="time-travel-bar">
               <span className="time-travel-label">Time Travel</span>
               <input 
@@ -182,7 +182,9 @@ export default function NotelyApp() {
                 value={travelIndex} 
                 onChange={(e) => setTravelIndex(parseInt(e.target.value))} 
               />
-              <Clock size={16} color="#9a9080" />
+              <div className="time-travel-icon">
+                <Clock size={16} />
+              </div>
             </div>
           </>
         ) : (
