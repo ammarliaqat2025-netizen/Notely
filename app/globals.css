@@ -564,7 +564,8 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink-faint) !important;
+  /* Changed from ink-faint to ink-light for a darker, clearer look */
+  color: var(--ink-light) !important; 
   font-family: Georgia, serif !important;
 }
 
@@ -577,7 +578,8 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   overflow-y: auto;
   font-family: Georgia, serif !important;
   white-space: pre-wrap;
-  font-style: italic;
+  /* Removed italic to keep the text clean and professional */
+  font-style: normal !important; 
 }
 
 .summary-close {
