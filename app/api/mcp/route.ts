@@ -158,14 +158,18 @@ function registerTool(
   group: string,
   scopes: Scope[],
   description: string,
-  inputSchema: Parameters<McpServer['registerTool']>[1]['inputSchema'],
+  inputSchema: z.ZodRawShape,
   handler: (ctx: AuthContext, input: Record<string, unknown>) => Promise<CallToolResult>
 ) {
   const authorized = auth !== null && scopes.every(scope => auth.scopes.includes(scope))
   const registered = server.registerTool(name, {
     description: `[FutureMinds MCP v1] ${description}`,
     inputSchema,
-    annotations: { readOnlyHint: action === 'READ', destructiveHint: action === 'DELETE', idempotentHint: action === 'READ' || action === 'DELETE' }
+    annotations: {
+      readOnlyHint: action === 'READ',
+      destructiveHint: action === 'DELETE',
+      idempotentHint: action !== 'WRITE',
+    },
   }, async (input) => {
     if (!auth) return failure('AUTH_REQUIRED')
     const started = performance.now()
@@ -173,7 +177,7 @@ function registerTool(
     try {
       for (const scope of scopes) requireScope(auth, scope)
       await consumeRateLimit(auth, name, action)
-      const output = await handler(auth, input as Record<string, unknown>)
+      const output = await handler(auth, input)
       const failed = output.isError === true
       await audit(auth, name, action, group, !failed, performance.now() - started, requestId, failed ? 'TOOL_ERROR' : undefined)
       return output
