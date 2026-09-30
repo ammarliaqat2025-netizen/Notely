@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --experimental-specifier-resolution=node --test tests/mcp/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/mcp/*.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",
