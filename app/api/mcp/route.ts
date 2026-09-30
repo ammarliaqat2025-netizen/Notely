@@ -150,7 +150,7 @@ async function currentRequestId(request: Request): Promise<string> {
   return crypto.randomUUID()
 }
 
-function registerTool(
+function registerTool<S extends z.ZodType>(
   server: McpServer,
   request: Request,
   auth: AuthContext | null,
@@ -159,10 +159,10 @@ function registerTool(
   group: string,
   scopes: Scope[],
   description: string,
-  inputSchema: z.ZodType | undefined,
-  handler: (ctx: AuthContext, input: unknown) => Promise<CallToolResult>
+  inputSchema: S | undefined,
+  handler: (ctx: AuthContext, input: z.output<S>) => Promise<CallToolResult>
 ) {
-  const required = scopes.every(scope => auth?.scopes.includes(scope) === true)
+  const authorized = auth !== null && scopes.every(scope => auth.scopes.includes(scope))
   const registered = server.registerTool(name, {
     description: `[FutureMinds MCP v1] ${description}`,
     inputSchema,
@@ -170,12 +170,13 @@ function registerTool(
   }, async (input) => {
     if (!auth) return failure('AUTH_REQUIRED')
     const started = performance.now()
-    const requestId = await currentRequestId(request)
+    const requestId = currentRequestId(request)
     try {
-      requireScope(auth, scopes[0])
+      scopes.forEach(scope => requireScope(auth, scope))
       await consumeRateLimit(auth, name, action)
-      const output = await handler(auth, input)
-      await audit(auth, name, action, group, output.isError !== true, performance.now() - started, requestId, output.isError === true ? 'TOOL_ERROR' : undefined)
+      const output = await handler(auth, input as z.output<S>)
+      const failed = output.isError === true
+      await audit(auth, name, action, group, !failed, performance.now() - started, requestId, failed ? 'TOOL_ERROR' : undefined)
       return output
     } catch (error) {
       const code = error instanceof Error ? error.message : 'INTERNAL_ERROR'
@@ -184,7 +185,7 @@ function registerTool(
       return failure(normalized)
     }
   })
-  if (!required) registered.disable()
+  if (!authorized) registered.disable()
 }
 
 export function buildServer(request: Request, info?: AuthInfo) {
