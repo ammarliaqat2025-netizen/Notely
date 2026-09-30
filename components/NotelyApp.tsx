@@ -228,7 +228,7 @@ export default function NotelyApp() {
   const [startedAt, setStartedAt] = useState<string | null>(null)
   const [history, setHistory] = useState<NoteVersion[]>([])
   const [travelIndex, setTravelIndex] = useState(-1)
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved')
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved')
   const [wordCount, setWordCount] = useState(0)
   const [aiStatus, setAiStatus] = useState('')
   const [search, setSearch] = useState('')
@@ -249,6 +249,8 @@ export default function NotelyApp() {
   const userRef = useRef<User | null>(null)
   const startedAtRef = useRef<string | null>(null)
   const notesRef = useRef<Note[]>([])
+  const localWriteRef = useRef<string | null>(null)
+  const saveSequenceRef = useRef(0)
 
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
   useEffect(() => { userRef.current = user }, [user])
@@ -264,8 +266,9 @@ export default function NotelyApp() {
   }, [])
 
   useEffect(() => {
-    if (user) { fetchCloud() }
-    else {
+    if (user) {
+      fetchCloud()
+    } else {
       const gn = loadGuest()
       setNotes(gn)
       if (gn.length > 0) openNote(gn[0])
