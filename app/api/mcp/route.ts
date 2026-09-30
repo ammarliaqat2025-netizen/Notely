@@ -1,4 +1,3 @@
-import type { CallToolResult } from '@modelcontextprotocol/server'
 import { createMcpHandler, McpServer, OAuthError, OAuthErrorCode, requireBearerAuth, type AuthInfo, type CallToolResult } from '@modelcontextprotocol/server'
 import { createClient } from '@supabase/supabase-js'
 import * as z from 'zod/v4'
@@ -150,7 +149,7 @@ async function currentRequestId(request: Request): Promise<string> {
   return crypto.randomUUID()
 }
 
-function registerTool<S extends z.ZodObject<Record<string, z.ZodTypeAny>>>(
+function registerTool(
   server: McpServer,
   request: Request,
   auth: AuthContext | null,
@@ -159,22 +158,22 @@ function registerTool<S extends z.ZodObject<Record<string, z.ZodTypeAny>>>(
   group: string,
   scopes: Scope[],
   description: string,
-  inputSchema: S | undefined,
-  handler: (ctx: AuthContext, input: z.output<S>) => Promise<CallToolResult>
+  inputSchema: Parameters<McpServer['registerTool']>[1]['inputSchema'],
+  handler: (ctx: AuthContext, input: Record<string, unknown>) => Promise<CallToolResult>
 ) {
   const authorized = auth !== null && scopes.every(scope => auth.scopes.includes(scope))
   const registered = server.registerTool(name, {
     description: `[FutureMinds MCP v1] ${description}`,
     inputSchema,
-    annotations: { readOnlyHint: action === 'READ', destructiveHint: action === 'DELETE', idempotentHint: action !== 'WRITE' }
+    annotations: { readOnlyHint: action === 'READ', destructiveHint: action === 'DELETE', idempotentHint: action === 'READ' || action === 'DELETE' }
   }, async (input) => {
     if (!auth) return failure('AUTH_REQUIRED')
     const started = performance.now()
     const requestId = await currentRequestId(request)
     try {
-      scopes.forEach(scope => requireScope(auth, scope))
+      for (const scope of scopes) requireScope(auth, scope)
       await consumeRateLimit(auth, name, action)
-      const output = await handler(auth, input as z.output<S>)
+      const output = await handler(auth, input as Record<string, unknown>)
       const failed = output.isError === true
       await audit(auth, name, action, group, !failed, performance.now() - started, requestId, failed ? 'TOOL_ERROR' : undefined)
       return output
