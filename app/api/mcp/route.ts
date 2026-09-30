@@ -1,4 +1,4 @@
-import type { CallToolResult, StandardSchemaWithJSON } from '@modelcontextprotocol/server'
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import { bearerAuthChallengeResponse, createMcpHandler, McpServer, OAuthError, OAuthErrorCode, requireBearerAuth, type AuthInfo } from '@modelcontextprotocol/server'
 import { createClient } from '@supabase/supabase-js'
 import * as z from 'zod/v4'
@@ -150,7 +150,7 @@ async function currentRequestId(request: Request): Promise<string> {
   return crypto.randomUUID()
 }
 
-function registerTool<S extends z.ZodType>(
+function registerTool<S extends ReturnType<typeof z.object>>(
   server: McpServer,
   request: Request,
   auth: AuthContext | null,
