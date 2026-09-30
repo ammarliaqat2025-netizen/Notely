@@ -276,6 +276,73 @@ export default function NotelyApp() {
     }
   }, [user])
 
+  useEffect(() => {
+    if (!user) return
+
+    const channel = supabase
+      .channel(`documents:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'documents',
+          filter: `user_id=eq.${user.id}`,
+        },
+        payload => {
+          const row = payload.new as Partial<Note> & { status?: string }
+          if (!row.id) return
+
+          if (payload.eventType === 'DELETE' || row.status === 'archived') {
+            setNotes(prev => prev.filter(note => note.id !== row.id))
+            if (activeIdRef.current === row.id) {
+              clearEditor()
+              setMobileView('list')
+            }
+            return
+          }
+
+          const incoming: Note = {
+            id: row.id,
+            user_id: row.user_id,
+            title: row.title ?? '',
+            body: row.body ?? '',
+            created_at: row.created_at ?? new Date().toISOString(),
+            updated_at: row.updated_at ?? new Date().toISOString(),
+            started_at: row.started_at ?? undefined,
+          }
+
+          if (localWriteRef.current === row.id) {
+            localWriteRef.current = null
+            return
+          }
+
+          setNotes(prev => {
+            const exists = prev.some(note => note.id === row.id)
+            return exists
+              ? prev.map(note => note.id === row.id ? { ...note, ...incoming, synced: true } : note)
+              : [incoming, ...prev]
+          })
+
+          if (activeIdRef.current === row.id) {
+            setActiveId(row.id)
+            activeIdRef.current = row.id
+            setTitle(incoming.title)
+            setBody(incoming.body)
+            startedAtRef.current = incoming.started_at ?? null
+            setStartedAt(incoming.started_at ?? null)
+            setWordCount(incoming.body.trim() ? incoming.body.trim().split(/\s+/).length : 0)
+            setSaveStatus('saved')
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [user])
+
   function clearEditor() {
     setActiveId(null); setTitle(''); setBody(''); setStartedAt(null)
     setWordCount(0); setAiStatus(''); setHistory([]); setTravelIndex(-1)
