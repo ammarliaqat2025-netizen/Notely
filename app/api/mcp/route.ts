@@ -158,7 +158,7 @@ function registerTool(
   group: string,
   scopes: Scope[],
   description: string,
-  inputSchema: z.ZodRawShape,
+  inputSchema: Parameters<McpServer['registerTool']>[1]['inputSchema'],
   handler: (ctx: AuthContext, input: Record<string, unknown>) => Promise<CallToolResult>
 ) {
   const authorized = auth !== null && scopes.every(scope => auth.scopes.includes(scope))
