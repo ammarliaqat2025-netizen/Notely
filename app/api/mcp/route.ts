@@ -1,3 +1,4 @@
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import { bearerAuthChallengeResponse, createMcpHandler, McpServer, OAuthError, OAuthErrorCode, requireBearerAuth, type AuthInfo } from '@modelcontextprotocol/server'
 import { createClient } from '@supabase/supabase-js'
 import * as z from 'zod/v4'
@@ -159,7 +160,7 @@ function registerTool(
   scopes: Scope[],
   description: string,
   inputSchema: z.ZodType | undefined,
-  handler: (ctx: AuthContext, input: unknown) => Promise<{ content: { type: 'text'; text: string }[]; isError?: boolean }>
+  handler: (ctx: AuthContext, input: unknown) => Promise<CallToolResult>
 ) {
   const required = scopes.every(scope => auth?.scopes.includes(scope) === true)
   const registered = server.registerTool(name, {
