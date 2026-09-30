@@ -491,13 +491,13 @@ export default function NotelyApp() {
     saveTimer.current = setTimeout(() => { void doSave(t, b, sa) }, 300)
   }
 
-  function addToHistory(b: string, source: NoteVersion['source'] = 'edit') {
+  function addToHistory(b: string) {
     if (historyTimer.current) clearTimeout(historyTimer.current)
     historyTimer.current = setTimeout(() => {
       setHistory(prev => {
         const last = prev[prev.length - 1]
         if (last?.content === b) return prev
-        return [...prev, { content: b, timestamp: Date.now(), source }]
+        return [...prev, { content: b, timestamp: Date.now() }]
       })
     }, 2000)
   }
@@ -535,7 +535,7 @@ export default function NotelyApp() {
     setBody(restored)
     setTravelIndex(-1)
     scheduleSave(title, restored, startedAt)
-    addToHistory(restored, 'restore')
+    addToHistory(restored)
   }
 
   const onTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
