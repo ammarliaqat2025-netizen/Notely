@@ -82,7 +82,30 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
 .ai-status-bar { padding: 7px 32px; font-size: 11.5px; color: var(--accent); font-style: italic; background: var(--accent-faint); border-bottom: 1px solid var(--line); flex-shrink: 0; }
 
 /* ── TIMESTAMP ── */
-.note-timestamp { font-size: 11px; color: var(--ink-faint); padding: 6px 32px 0; font-style: italic; flex-shrink: 0; }
+.note-timestamp {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-height: 22px;
+  font-size: 11px;
+  color: var(--ink-faint);
+  padding: 6px 32px 2px;
+  font-style: italic;
+  flex-shrink: 0;
+}
+.note-timestamp-label {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.note-timestamp strong {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ink-light);
+}
 
 /* ── TIME TRAVEL ── */
 .time-travel-bar {
