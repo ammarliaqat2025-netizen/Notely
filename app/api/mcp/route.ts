@@ -47,17 +47,6 @@ async function sha256(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
-function tokenExpiry(value: string): number | undefined {
-  const parts = value.split('.')
-  if (parts.length !== 3) return undefined
-  try {
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as { exp?: number }
-    return typeof payload.exp === 'number' ? payload.exp : undefined
-  } catch {
-    return undefined
-  }
-}
-
 async function verifyAccessToken(token: string, resource: string): Promise<AuthInfo> {
   const supabase = admin()
   const tokenHash = await sha256(token)
