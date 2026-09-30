@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import type { User } from '@supabase/supabase-js'
 
-interface NoteVersion { content: string; timestamp: number; source: 'capture' | 'edit' | 'restore' }
+interface NoteVersion { content: string; timestamp: number }
 
 interface Note {
   id: string
@@ -33,10 +33,6 @@ function fmtFull(iso: string) {
 }
 function fmtShortTime(ts: number) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
-}
-
-function createCaptureTimestamp() {
-  return new Date().toISOString()
 }
 
 function toTimestampMs(iso: string | null | undefined) {
