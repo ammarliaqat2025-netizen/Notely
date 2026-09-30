@@ -7,6 +7,22 @@ interface NoteUpdateRequest {
   started_at?: unknown
 }
 
+interface DocumentRow {
+  id: string
+  user_id: string
+  title: string
+  body: string
+  started_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface VersionRow {
+  version_number: number
+  body: string
+  created_at: string
+}
+
 function parseId(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null
 }
@@ -39,19 +55,18 @@ function parseUpdate(value: unknown): {
   return result
 }
 
-function normalizeNote(data: {
-  id: string
-  user_id: string
-  title: string
-  body: string
-  started_at: string | null
-  created_at: string
-  updated_at: string
-}) {
-  return {
-    ...data,
-    history: [],
+function toHistory(versions: VersionRow[], fallback: string, fallbackTimestamp: string | null) {
+  if (versions.length > 0) {
+    return versions
+      .slice()
+      .sort((a, b) => a.version_number - b.version_number)
+      .map(version => ({
+        content: version.body,
+        timestamp: Date.parse(version.created_at),
+      }))
   }
+
+  return [{ content: fallback, timestamp: Date.parse(fallbackTimestamp ?? new Date().toISOString()) }]
 }
 
 export async function PATCH(
@@ -84,8 +99,18 @@ export async function PATCH(
     return NextResponse.json({ error: 'No valid changes supplied' }, { status: 400 })
   }
 
-  const updates: Record<string, unknown> = {}
+  const { data: before, error: beforeError } = await supabase
+    .from('documents')
+    .select('id,user_id,title,body,started_at,created_at,updated_at')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single()
 
+  if (beforeError || !before) {
+    return NextResponse.json({ error: 'Note not found' }, { status: 404 })
+  }
+
+  const updates: Record<string, unknown> = {}
   if (parsed.title !== undefined) updates.title = parsed.title
   if (parsed.body !== undefined) updates.body = parsed.body
   if (parsed.startedAt !== undefined) updates.started_at = parsed.startedAt
@@ -103,7 +128,57 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update note' }, { status: 500 })
   }
 
-  return NextResponse.json(normalizeNote(data))
+  const document = data as DocumentRow
+  const bodyChanged = document.body !== (before as DocumentRow).body
+
+  if (bodyChanged) {
+    const { data: latestVersion, error: versionLookupError } = await supabase
+      .from('document_versions')
+      .select('version_number')
+      .eq('document_id', document.id)
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (!versionLookupError) {
+      const nextVersion = ((latestVersion as { version_number: number } | null)?.version_number ?? 0) + 1
+      const { error: versionError } = await supabase
+        .from('document_versions')
+        .insert({
+          document_id: document.id,
+          version_number: nextVersion,
+          body: document.body,
+        })
+
+      if (versionError) {
+        console.error('Failed to persist note version:', versionError)
+      }
+    } else {
+      console.error('Failed to read note version sequence:', versionLookupError)
+    }
+  }
+
+  const { data: versions } = await supabase
+    .from('document_versions')
+    .select('version_number,body,created_at')
+    .eq('document_id', document.id)
+    .order('version_number', { ascending: true })
+
+  return NextResponse.json({
+    id: document.id,
+    user_id: document.user_id,
+    title: document.title,
+    body: document.body,
+    created_at: document.created_at,
+    updated_at: document.updated_at,
+    started_at: document.started_at,
+    history: toHistory(
+      (versions ?? []) as VersionRow[],
+      document.body,
+      document.started_at ?? document.created_at
+    ),
+    synced: true,
+  })
 }
 
 export async function DELETE(
