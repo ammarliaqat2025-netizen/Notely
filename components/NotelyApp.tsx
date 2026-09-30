@@ -548,8 +548,9 @@ export default function NotelyApp() {
     if (travelIndex < 0 || !history[travelIndex]) return
     const restored = history[travelIndex].content
     setBody(restored)
+    activeDraftRef.current.body = restored
     setTravelIndex(-1)
-    scheduleSave(title, restored, startedAt)
+    scheduleSave(activeDraftRef.current.title, restored, startedAtRef.current)
     addToHistory(restored)
   }
 
