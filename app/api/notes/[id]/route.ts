@@ -1,10 +1,6 @@
 import { createClient } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
 
-interface Params {
-  id: string
-}
-
 interface NoteUpdateRequest {
   title?: unknown
   body?: unknown
@@ -43,9 +39,24 @@ function parseUpdate(value: unknown): {
   return result
 }
 
+function normalizeNote(data: {
+  id: string
+  user_id: string
+  title: string
+  body: string
+  started_at: string | null
+  created_at: string
+  updated_at: string
+}) {
+  return {
+    ...data,
+    history: [],
+  }
+}
+
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<Params> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -92,21 +103,12 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update note' }, { status: 500 })
   }
 
-  return NextResponse.json({
-    id: data.id,
-    user_id: data.user_id,
-    title: data.title,
-    body: data.body,
-    created_at: data.created_at,
-    updated_at: data.updated_at,
-    started_at: data.started_at,
-    history: [],
-  })
+  return NextResponse.json(normalizeNote(data))
 }
 
 export async function DELETE(
   _: Request,
-  { params }: { params: Promise<Params> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -130,6 +132,7 @@ export async function DELETE(
     })
     .eq('id', id)
     .eq('user_id', user.id)
+    .eq('status', 'active')
     .select('id')
     .single()
 
