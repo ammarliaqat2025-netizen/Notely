@@ -483,6 +483,50 @@ export async function OPTIONS(request: Request) { return serve(request) }functio
     }
   )
   if (!authorized) registered.disable()
+function registerTool<TSchema extends z.ZodRawShape>(
+  server: McpServer,
+  request: Request,
+  auth: AuthContext | null,
+  name: string,
+  action: 'READ' | 'WRITE' | 'DELETE',
+  group: string,
+  scopes: Scope[],
+  description: string,
+  inputSchema: z.ZodObject<TSchema>,
+  handler: (ctx: AuthContext, input: z.infer<z.ZodObject<TSchema>>) => Promise<CallToolResult>
+) {
+  const authorized = auth !== null && scopes.every(scope => auth.scopes.includes(scope))
+  const registered = server.registerTool(
+    name,
+    {
+      description: `[FutureMinds MCP v1] ${description}`,
+      inputSchema,
+      annotations: {
+        readOnlyHint: action === 'READ',
+        destructiveHint: action === 'DELETE',
+        idempotentHint: action !== 'WRITE',
+      },
+    },
+    async (input, _ctx) => {
+      if (!auth) return failure('AUTH_REQUIRED')
+      const started = performance.now()
+      const requestId = await currentRequestId(request)
+      try {
+        for (const scope of scopes) requireScope(auth, scope)
+        await consumeRateLimit(auth, name, action)
+        const output = await handler(auth, input)
+        const failed = output.isError === true
+        await audit(auth, name, action, group, !failed, performance.now() - started, requestId, failed ? 'TOOL_ERROR' : undefined)
+        return output
+      } catch (error) {
+        const code = error instanceof Error ? error.message : 'INTERNAL_ERROR'
+        const normalized = ['AUTH_REQUIRED','INSUFFICIENT_SCOPE','NOT_FOUND','VALIDATION_ERROR','CONFLICT','IDEMPOTENCY_CONFLICT','RATE_LIMITED','TEMPORARILY_UNAVAILABLE','INTERNAL_ERROR'].includes(code) ? code : 'INTERNAL_ERROR'
+        await audit(auth, name, action, group, false, performance.now() - started, requestId, normalized)
+        return failure(normalized)
+      }
+    }
+  )
+  if (!authorized) registered.disable()
 }
 
 export function buildServer(request: Request, info?: AuthInfo) {
@@ -728,4 +772,48 @@ async function serve(request: Request): Promise<Response> {
 export async function GET(request: Request) { return serve(request) }
 export async function POST(request: Request) { return serve(request) }
 export async function DELETE(request: Request) { return serve(request) }
-export async function OPTIONS(request: Request) { return serve(request) }
+export async function OPTIONS(request: Request) { return serve(request) }function registerTool<TSchema extends z.ZodRawShape>(
+  server: McpServer,
+  request: Request,
+  auth: AuthContext | null,
+  name: string,
+  action: 'READ' | 'WRITE' | 'DELETE',
+  group: string,
+  scopes: Scope[],
+  description: string,
+  inputSchema: z.ZodObject<TSchema>,
+  handler: (ctx: AuthContext, input: z.infer<z.ZodObject<TSchema>>) => Promise<CallToolResult>
+) {
+  const authorized = auth !== null && scopes.every(scope => auth.scopes.includes(scope))
+  const registered = server.registerTool(
+    name,
+    {
+      description: `[FutureMinds MCP v1] ${description}`,
+      inputSchema,
+      annotations: {
+        readOnlyHint: action === 'READ',
+        destructiveHint: action === 'DELETE',
+        idempotentHint: action !== 'WRITE',
+      },
+    },
+    async (input) => {
+      if (!auth) return failure('AUTH_REQUIRED')
+      const started = performance.now()
+      const requestId = await currentRequestId(request)
+      try {
+        for (const scope of scopes) requireScope(auth, scope)
+        await consumeRateLimit(auth, name, action)
+        const output = await handler(auth, input)
+        const failed = output.isError === true
+        await audit(auth, name, action, group, !failed, performance.now() - started, requestId, failed ? 'TOOL_ERROR' : undefined)
+        return output
+      } catch (error) {
+        const code = error instanceof Error ? error.message : 'INTERNAL_ERROR'
+        const normalized = ['AUTH_REQUIRED','INSUFFICIENT_SCOPE','NOT_FOUND','VALIDATION_ERROR','CONFLICT','IDEMPOTENCY_CONFLICT','RATE_LIMITED','TEMPORARILY_UNAVAILABLE','INTERNAL_ERROR'].includes(code) ? code : 'INTERNAL_ERROR'
+        await audit(auth, name, action, group, false, performance.now() - started, requestId, normalized)
+        return failure(normalized)
+      }
+    }
+  )
+  if (!authorized) registered.disable()
+}
