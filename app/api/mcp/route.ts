@@ -170,7 +170,7 @@ function registerTool<S extends z.ZodType>(
   }, async (input) => {
     if (!auth) return failure('AUTH_REQUIRED')
     const started = performance.now()
-    const requestId = currentRequestId(request)
+    const requestId = await currentRequestId(request)
     try {
       scopes.forEach(scope => requireScope(auth, scope))
       await consumeRateLimit(auth, name, action)
