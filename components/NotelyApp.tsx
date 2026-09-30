@@ -35,6 +35,12 @@ function fmtShortTime(ts: number) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
 }
 
+function toTimestampMs(iso: string | null | undefined) {
+  if (!iso) return null
+  const parsed = Date.parse(iso)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 const GUEST_KEY = 'notely_notes'
 function loadGuest(): Note[] {
   try { return JSON.parse(localStorage.getItem(GUEST_KEY) || '[]') } catch { return [] }
@@ -159,11 +165,17 @@ function Editor({
         </button>
         <div className="tool-sep" />
         <span className="word-count" style={{ marginLeft: 'auto' }}>{wordCount}w</span>
-        <span className={`save-status ${saveStatus}`}>{saveStatus === 'saved' ? '● saved' : '○ saving…'}</span>
+        <span className={`save-status ${saveStatus}`} aria-live="polite">
+          {saveStatus === 'saved' ? '● saved' : saveStatus === 'error' ? '● save failed' : '○ saving…'}
+        </span>
       </div>
 
       {aiStatus && <div className="ai-status-bar">{aiStatus}</div>}
-      {startedAt && <div className="note-timestamp">⏱ {fmtTime(startedAt)} · {fmtFull(startedAt)}</div>}
+      <div className="note-timestamp" aria-label="Capture timestamp">
+        <span className="note-timestamp-label">Captured</span>
+        <strong>{fmtTime(startedAt || new Date().toISOString())}</strong>
+        <span>· {fmtFull(startedAt || new Date().toISOString())}</span>
+      </div>
 
       <textarea
         ref={titleRef}
@@ -185,21 +197,24 @@ function Editor({
         }}
       />
 
-      {history.length > 1 && (
+      {history.length > 0 && (
         <div className="time-travel-bar">
           <span className="tt-label">Time Travel</span>
           <input
             type="range"
             className="tt-scrubber"
             min={0}
-            max={history.length - 1}
-            value={travelIndex >= 0 ? travelIndex : history.length - 1}
+            max={Math.max(0, history.length - 1)}
+            value={travelIndex >= 0 ? travelIndex : Math.max(0, history.length - 1)}
             onChange={e => onTravel(parseInt(e.target.value))}
+            aria-label="Time travel history"
           />
           <span className="tt-time">
             {travelIndex >= 0 && history[travelIndex]
               ? fmtShortTime(history[travelIndex].timestamp)
-              : fmtShortTime(history[history.length - 1]?.timestamp || Date.now())}
+              : history.length === 1
+                ? 'Captured'
+                : fmtShortTime(history[history.length - 1]?.timestamp || Date.now())}
           </span>
           {travelIndex >= 0 && travelIndex < history.length - 1 && (
             <button className="tt-restore" onClick={onRestoreVersion}>Restore</button>
@@ -222,7 +237,7 @@ export default function NotelyApp() {
   const [startedAt, setStartedAt] = useState<string | null>(null)
   const [history, setHistory] = useState<NoteVersion[]>([])
   const [travelIndex, setTravelIndex] = useState(-1)
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved')
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved')
   const [wordCount, setWordCount] = useState(0)
   const [aiStatus, setAiStatus] = useState('')
   const [search, setSearch] = useState('')
@@ -243,11 +258,15 @@ export default function NotelyApp() {
   const userRef = useRef<User | null>(null)
   const startedAtRef = useRef<string | null>(null)
   const notesRef = useRef<Note[]>([])
+  const localWriteRef = useRef<string | null>(null)
+  const saveSequenceRef = useRef(0)
+  const activeDraftRef = useRef({ title: '', body: '' })
 
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
   useEffect(() => { userRef.current = user }, [user])
   useEffect(() => { startedAtRef.current = startedAt }, [startedAt])
   useEffect(() => { notesRef.current = notes }, [notes])
+  useEffect(() => { activeDraftRef.current = { title, body } }, [title, body])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user))
@@ -258,8 +277,9 @@ export default function NotelyApp() {
   }, [])
 
   useEffect(() => {
-    if (user) { fetchCloud() }
-    else {
+    if (user) {
+      fetchCloud()
+    } else {
       const gn = loadGuest()
       setNotes(gn)
       if (gn.length > 0) openNote(gn[0])
@@ -267,27 +287,110 @@ export default function NotelyApp() {
     }
   }, [user])
 
+  useEffect(() => {
+    if (!user) return
+
+    const channel = supabase
+      .channel(`documents:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'documents',
+          filter: `user_id=eq.${user.id}`,
+        },
+        payload => {
+          const row = payload.new as Partial<Note> & { status?: string }
+          if (!row.id) return
+
+          if (payload.eventType === 'DELETE' || row.status === 'archived') {
+            setNotes(prev => prev.filter(note => note.id !== row.id))
+            if (activeIdRef.current === row.id) {
+              clearEditor()
+              setMobileView('list')
+            }
+            return
+          }
+
+          const incoming: Note = {
+            id: row.id,
+            user_id: row.user_id,
+            title: row.title ?? '',
+            body: row.body ?? '',
+            created_at: row.created_at ?? new Date().toISOString(),
+            updated_at: row.updated_at ?? new Date().toISOString(),
+            started_at: row.started_at ?? undefined,
+          }
+
+          if (localWriteRef.current === row.id) {
+            localWriteRef.current = null
+            return
+          }
+
+          setNotes(prev => {
+            const exists = prev.some(note => note.id === row.id)
+            return exists
+              ? prev.map(note => note.id === row.id ? { ...note, ...incoming, synced: true } : note)
+              : [incoming, ...prev]
+          })
+
+          if (activeIdRef.current === row.id) {
+            setActiveId(row.id)
+            activeIdRef.current = row.id
+            setTitle(incoming.title)
+            setBody(incoming.body)
+            activeDraftRef.current = { title: incoming.title, body: incoming.body }
+            startedAtRef.current = incoming.started_at ?? null
+            setStartedAt(incoming.started_at ?? null)
+            setHistory(prev => {
+              const timestamp = Date.parse(incoming.updated_at)
+              const last = prev[prev.length - 1]
+              if (last?.content === incoming.body) return prev
+              return [...prev, { content: incoming.body, timestamp }]
+            })
+            setWordCount(incoming.body.trim() ? incoming.body.trim().split(/\s+/).length : 0)
+            setSaveStatus('saved')
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [user])
+
   function clearEditor() {
+    activeIdRef.current = null
+    startedAtRef.current = null
     setActiveId(null); setTitle(''); setBody(''); setStartedAt(null)
     setWordCount(0); setAiStatus(''); setHistory([]); setTravelIndex(-1)
   }
 
   async function fetchCloud() {
-    const res = await fetch('/api/notes')
+    const res = await fetch('/api/notes', { cache: 'no-store' })
     if (!res.ok) return
     const data: Note[] = await res.json()
-    setNotes(data)
+    setNotes(data.map(note => ({ ...note, synced: true })))
     if (data.length > 0) openNote(data[0])
     else clearEditor()
   }
 
   function openNote(note: Note) {
+    activeIdRef.current = note.id
+    startedAtRef.current = note.started_at || null
     setActiveId(note.id)
     setTitle(note.title)
     setBody(note.body)
+    activeDraftRef.current = { title: note.title, body: note.body }
     setStartedAt(note.started_at || null)
     setWordCount(note.body.trim() ? note.body.trim().split(/\s+/).length : 0)
-    setHistory(note.history || [{ content: note.body, timestamp: Date.now() }])
+    const capturedAt = toTimestampMs(note.started_at)
+    setHistory(note.history?.length ? note.history : [{
+      content: note.body,
+      timestamp: capturedAt ?? toTimestampMs(note.created_at) ?? Date.now(),
+    }])
     setTravelIndex(-1)
     setSaveStatus('saved')
     setAiStatus('')
@@ -299,9 +402,18 @@ export default function NotelyApp() {
   async function newNote() {
     const now = new Date().toISOString()
     const tempId = `temp-${Date.now()}`
+    const captureTimestamp = Date.now()
+    activeIdRef.current = tempId
+    startedAtRef.current = now
     const tempNote: Note = {
-      id: tempId, title: '', body: '', created_at: now, updated_at: now,
-      started_at: now, history: [{ content: '', timestamp: Date.now() }], synced: false
+      id: tempId,
+      title: '',
+      body: '',
+      created_at: now,
+      updated_at: now,
+      started_at: now,
+      history: [{ content: '', timestamp: captureTimestamp }],
+      synced: false,
     }
     const updated = [tempNote, ...notesRef.current]
     setNotes(updated)
@@ -318,28 +430,64 @@ export default function NotelyApp() {
         })
         if (res.ok) {
           const cloud: Note = await res.json()
-          setNotes(prev => prev.map(n => n.id === tempId ? { ...cloud, history: tempNote.history, synced: true } : n))
-          setActiveId(cloud.id)
+          const draftTitle = activeDraftRef.current.title
+          const draftBody = activeDraftRef.current.body
+          const draftStartedAt = startedAtRef.current ?? cloud.started_at ?? now
+
+          setNotes(prev => prev.map(n =>
+            n.id === tempId
+              ? { ...cloud, title: draftTitle, body: draftBody, started_at: draftStartedAt, history: tempNote.history, synced: true }
+              : n
+          ))
           activeIdRef.current = cloud.id
+          startedAtRef.current = draftStartedAt
+          setActiveId(cloud.id)
+          setStartedAt(draftStartedAt)
+
+          if (draftTitle || draftBody) {
+            localWriteRef.current = cloud.id
+            const draftRes = await fetch('/api/notes/' + cloud.id, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ title: draftTitle, body: draftBody, started_at: draftStartedAt }),
+            })
+            localWriteRef.current = null
+            if (!draftRes.ok) setSaveStatus('error')
+          }
         }
-      } catch {}
+      } catch {
+        setSaveStatus('error')
+      }
     }
   }
 
   const doSave = useCallback(async (t: string, b: string, sa: string | null) => {
     const id = activeIdRef.current
     if (!id || id.startsWith('temp-')) return
+
+    const sequence = ++saveSequenceRef.current
     const now = new Date().toISOString()
+
     if (userRef.current) {
-      await fetch(`/api/notes/${id}`, {
+      localWriteRef.current = id
+      const response = await fetch('/api/notes/' + id, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: t, body: b, started_at: sa })
       })
+      localWriteRef.current = null
+      if (sequence !== saveSequenceRef.current) return
+      if (!response.ok) {
+        setSaveStatus('error')
+        return
+      }
     }
+
     setNotes(prev => {
       const updated = prev.map(n =>
-        n.id === id ? { ...n, title: t, body: b, started_at: sa ?? undefined, updated_at: now } : n
+        n.id === id
+          ? { ...n, title: t, body: b, started_at: sa ?? undefined, updated_at: now, synced: Boolean(userRef.current) }
+          : n
       )
       if (!userRef.current) saveGuest(updated)
       return updated
@@ -350,7 +498,7 @@ export default function NotelyApp() {
   function scheduleSave(t: string, b: string, sa: string | null) {
     setSaveStatus('saving')
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => doSave(t, b, sa), 800)
+    saveTimer.current = setTimeout(() => { void doSave(t, b, sa) }, 300)
   }
 
   function addToHistory(b: string) {
@@ -366,29 +514,43 @@ export default function NotelyApp() {
 
   function onTitleChange(v: string) {
     let sa = startedAtRef.current
-    if (!sa) { sa = new Date().toISOString(); setStartedAt(sa) }
+    if (!sa) {
+      sa = new Date().toISOString()
+      startedAtRef.current = sa
+      setStartedAt(sa)
+    }
     setTitle(v)
-    scheduleSave(v, body, sa)
+    activeDraftRef.current.title = v
+    scheduleSave(v, activeDraftRef.current.body, sa)
   }
 
   function onBodyChange(v: string) {
     let sa = startedAtRef.current
-    if (!sa) { sa = new Date().toISOString(); setStartedAt(sa) }
+    if (!sa) {
+      sa = new Date().toISOString()
+      startedAtRef.current = sa
+      setStartedAt(sa)
+    }
     setBody(v)
+    activeDraftRef.current.body = v
     setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0)
-    scheduleSave(title, v, sa)
+    scheduleSave(activeDraftRef.current.title, v, sa)
     addToHistory(v)
     setTravelIndex(-1)
   }
 
-  function onTravel(idx: number) { setTravelIndex(idx) }
+  function onTravel(idx: number) {
+    if (history.length === 0) return
+    setTravelIndex(Math.max(0, Math.min(idx, history.length - 1)))
+  }
 
   function onRestoreVersion() {
     if (travelIndex < 0 || !history[travelIndex]) return
     const restored = history[travelIndex].content
     setBody(restored)
+    activeDraftRef.current.body = restored
     setTravelIndex(-1)
-    scheduleSave(title, restored, startedAt)
+    scheduleSave(activeDraftRef.current.title, restored, startedAtRef.current)
     addToHistory(restored)
   }
 

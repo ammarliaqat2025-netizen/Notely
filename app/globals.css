@@ -82,12 +82,35 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
 .ai-status-bar { padding: 7px 32px; font-size: 11.5px; color: var(--accent); font-style: italic; background: var(--accent-faint); border-bottom: 1px solid var(--line); flex-shrink: 0; }
 
 /* ── TIMESTAMP ── */
-.note-timestamp { font-size: 11px; color: var(--ink-faint); padding: 6px 32px 0; font-style: italic; flex-shrink: 0; }
+.note-timestamp {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-height: 22px;
+  font-size: 11px;
+  color: var(--ink-faint);
+  padding: 6px 32px 2px;
+  font-style: italic;
+  flex-shrink: 0;
+}
+.note-timestamp-label {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.note-timestamp strong {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ink-light);
+}
 
 /* ── TIME TRAVEL ── */
 .time-travel-bar {
-  position: absolute;
-  bottom: 24px;
+  position: sticky;
+  bottom: auto;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -98,8 +121,11 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   border-radius: 50px;
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
-  z-index: 10;
+  z-index: 20;
   white-space: nowrap;
+  align-self: center;
+  margin: 12px 0 20px;
+  flex-shrink: 0;
 }
 .tt-label { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: var(--ink-faint); text-transform: uppercase; }
 .tt-scrubber { -webkit-appearance: none; width: 100px; height: 2px; background: var(--line); cursor: pointer; border-radius: 2px; outline: none; }
@@ -168,7 +194,7 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   .toolbar { padding: 10px 24px; }
   .note-timestamp { padding: 6px 24px 0; }
   .ai-status-bar { padding: 7px 24px; }
-  .time-travel-bar { bottom: 18px; }
+  .time-travel-bar { margin: 10px auto 16px; }
 }
 
 /* ── MOBILE ── */
@@ -185,7 +211,7 @@ body { height: 100%; font-family: Georgia, serif; color: var(--ink); background:
   .note-body { font-size: 15px; padding: 6px 16px 100px; line-height: 1.8; }
   .note-timestamp { padding: 4px 16px 0; }
   .ai-status-bar { padding: 6px 16px; }
-  .time-travel-bar { bottom: 14px; width: 90%; max-width: 340px; padding: 8px 14px; }
+  .time-travel-bar { margin: 8px auto 14px; width: 90%; max-width: 340px; padding: 8px 14px; }
   .tt-scrubber { width: 80px; }
   .mobile-notes-panel { flex: 1; overflow-y: auto; padding: 6px 10px; background: var(--paper); -webkit-overflow-scrolling: touch; }
   .mobile-notes-panel .note-item { padding: 14px 12px; }
