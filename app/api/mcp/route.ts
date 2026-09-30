@@ -90,14 +90,14 @@ async function consumeRateLimit(ctx: AuthContext, tool: string, action: 'READ' |
   if (row && row.allowed === false) throw new Error('RATE_LIMITED')
 }
 
-async function audit(ctx: AuthContext, tool: string, action: 'READ' | 'WRITE' | 'DELETE', success: boolean, latencyMs: number, requestId: string, errorCode?: string) {
+async function audit(ctx: AuthContext, tool: string, action: 'READ' | 'WRITE' | 'DELETE', group: string, success: boolean, latencyMs: number, requestId: string, errorCode?: string) {
   await admin().from('mcp_audit_events').insert({
     user_id: ctx.userId,
     client_id: ctx.clientId,
     request_id: requestId,
     tool_name: tool,
     tool_version: 'v1',
-    capability_group: tool.startsWith('search') ? 'search' : tool.startsWith('get_timeline') || tool.startsWith('get_notes_for_period') ? 'timeline' : tool.startsWith('assemble') ? 'context' : tool.includes('version') ? 'versions' : tool.startsWith('search_saved') || tool.startsWith('get_link') ? 'links' : 'notes',
+    capability_group: group,
     action,
     success,
     error_code: errorCode ?? null,
@@ -174,12 +174,12 @@ function registerTool(
       requireScope(auth, scopes[0])
       await consumeRateLimit(auth, name, action)
       const output = await handler(auth, input)
-      await audit(auth, name, action, output.isError !== true, performance.now() - started, requestId, output.isError === true ? 'TOOL_ERROR' : undefined)
+      await audit(auth, name, action, group, output.isError !== true, performance.now() - started, requestId, output.isError === true ? 'TOOL_ERROR' : undefined)
       return output
     } catch (error) {
       const code = error instanceof Error ? error.message : 'INTERNAL_ERROR'
       const normalized = ['AUTH_REQUIRED','INSUFFICIENT_SCOPE','NOT_FOUND','VALIDATION_ERROR','CONFLICT','IDEMPOTENCY_CONFLICT','RATE_LIMITED','TEMPORARILY_UNAVAILABLE','INTERNAL_ERROR'].includes(code) ? code : 'INTERNAL_ERROR'
-      await audit(auth, name, action, false, performance.now() - started, requestId, normalized)
+      await audit(auth, name, action, group, false, performance.now() - started, requestId, normalized)
       return failure(normalized)
     }
   })
