@@ -260,11 +260,13 @@ export default function NotelyApp() {
   const notesRef = useRef<Note[]>([])
   const localWriteRef = useRef<string | null>(null)
   const saveSequenceRef = useRef(0)
+  const activeDraftRef = useRef({ title: '', body: '' })
 
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
   useEffect(() => { userRef.current = user }, [user])
   useEffect(() => { startedAtRef.current = startedAt }, [startedAt])
   useEffect(() => { notesRef.current = notes }, [notes])
+  useEffect(() => { activeDraftRef.current = { title, body } }, [title, body])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user))
@@ -338,6 +340,7 @@ export default function NotelyApp() {
             activeIdRef.current = row.id
             setTitle(incoming.title)
             setBody(incoming.body)
+            activeDraftRef.current = { title: incoming.title, body: incoming.body }
             startedAtRef.current = incoming.started_at ?? null
             setStartedAt(incoming.started_at ?? null)
             setHistory(prev => {
@@ -380,6 +383,7 @@ export default function NotelyApp() {
     setActiveId(note.id)
     setTitle(note.title)
     setBody(note.body)
+    activeDraftRef.current = { title: note.title, body: note.body }
     setStartedAt(note.started_at || null)
     setWordCount(note.body.trim() ? note.body.trim().split(/\s+/).length : 0)
     const capturedAt = toTimestampMs(note.started_at)
@@ -426,8 +430,8 @@ export default function NotelyApp() {
         })
         if (res.ok) {
           const cloud: Note = await res.json()
-          const draftTitle = titleRef.current?.value ?? ''
-          const draftBody = bodyRef.current?.value ?? ''
+          const draftTitle = activeDraftRef.current.title
+          const draftBody = activeDraftRef.current.body
           const draftStartedAt = startedAtRef.current ?? cloud.started_at ?? now
 
           setNotes(prev => prev.map(n =>
@@ -516,7 +520,8 @@ export default function NotelyApp() {
       setStartedAt(sa)
     }
     setTitle(v)
-    scheduleSave(v, body, sa)
+    activeDraftRef.current.title = v
+    scheduleSave(v, activeDraftRef.current.body, sa)
   }
 
   function onBodyChange(v: string) {
@@ -527,6 +532,7 @@ export default function NotelyApp() {
       setStartedAt(sa)
     }
     setBody(v)
+    activeDraftRef.current.body = v
     setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0)
     scheduleSave(title, v, sa)
     addToHistory(v)
