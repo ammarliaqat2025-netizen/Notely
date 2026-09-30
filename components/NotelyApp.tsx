@@ -166,8 +166,8 @@ function Editor({
         <div className="tool-sep" />
         <span className="word-count" style={{ marginLeft: 'auto' }}>{wordCount}w</span>
         <span className={`save-status ${saveStatus}`} aria-live="polite">
-        {saveStatus === 'saved' ? '● saved' : saveStatus === 'error' ? '● save failed' : '○ saving…'}
-      </span>
+          {saveStatus === 'saved' ? '● saved' : saveStatus === 'error' ? '● save failed' : '○ saving…'}
+        </span>
       </div>
 
       {aiStatus && <div className="ai-status-bar">{aiStatus}</div>}
