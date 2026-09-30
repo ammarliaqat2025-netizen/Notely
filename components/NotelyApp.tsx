@@ -312,8 +312,7 @@ export default function NotelyApp() {
     const captureTimestamp = Date.now()
     const tempNote: Note = {
       id: tempId, title: '', body: '', created_at: now, updated_at: now,
-      started_at: now, history: [{ content: '', timestamp: captureTimestamp, source: 'capture' }], synced: false
-    }
+      started_at: now, history: [{ content: '', timestamp: captureTimestamp,  }] , synced: false }
     const updated = [tempNote, ...notesRef.current]
     setNotes(updated)
     openNote(tempNote)
