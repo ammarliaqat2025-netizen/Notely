@@ -1,4 +1,4 @@
-import { createMcpHandler, McpServer, OAuthError, OAuthErrorCode, requireBearerAuth, type AuthInfo, type CallToolResult } from '@modelcontextprotocol/server'
+import { createMcpHandler, McpServer, OAuthError, OAuthErrorCode, requireBearerAuth, type AuthInfo } from '@modelcontextprotocol/server'
 import { createClient } from '@supabase/supabase-js'
 import * as z from 'zod/v4'
 
@@ -6,6 +6,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 import { MCP_SCOPES, MCP_TOOL_REGISTRY, type McpScope } from '@/lib/mcp/registry'
+import type { CallToolResult } from '@modelcontextprotocol/server'
 type Scope = McpScope
 
 type AuthContext = {
@@ -158,7 +159,7 @@ function registerTool(
   group: string,
   scopes: Scope[],
   description: string,
-  inputSchema: Parameters<McpServer['registerTool']>[1]['inputSchema'],
+  inputSchema: Record<string, z.$ZodType>,
   handler: (ctx: AuthContext, input: Record<string, unknown>) => Promise<CallToolResult>
 ) {
   const authorized = auth !== null && scopes.every(scope => auth.scopes.includes(scope))
