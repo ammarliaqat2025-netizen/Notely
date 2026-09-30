@@ -159,8 +159,8 @@ function registerTool(
   group: string,
   scopes: Scope[],
   description: string,
-  inputSchema: Record<string, z.$ZodType>,
-  handler: (ctx: AuthContext, input: Record<string, unknown>) => Promise<CallToolResult>
+  inputSchema: z.ZodRawShape,
+  handler: (ctx: AuthContext, input: z.infer<z.ZodObject<z.ZodRawShape>>) => Promise<CallToolResult>
 ) {
   const authorized = auth !== null && scopes.every(scope => auth.scopes.includes(scope))
   const registered = server.registerTool(name, {
@@ -417,7 +417,7 @@ export function buildServer(request: Request, info?: AuthInfo) {
 
 const mcpOrigin = (request: Request) => envOrigin(request)
 const resourceUri = (request: Request) => new URL('/api/mcp', mcpOrigin(request)).toString()
-const handler = createMcpHandler((ctx) => buildServer(ctx.requestInfo ?? new Request('https://notely.local/api/mcp'), ctx.authInfo), { legacy: 'stateless', responseMode: 'json', maxRequestBodySize: 1024 * 1024, onerror: (error) => console.error('Notely MCP error', error.message) })
+const handler = createMcpHandler((ctx) => buildServer(ctx.requestInfo ?? new Request('https://notely.local/api/mcp'), ctx.authInfo), { legacy: 'stateless', responseMode: 'json', onerror: (error) => console.error('Notely MCP error', error.message) })
 const bearer = (request: Request) => requireBearerAuth({
   verifier: { verifyAccessToken: (token: string) => verifyAccessToken(token, resourceUri(request)) },
   resourceMetadataUrl: new URL('/.well-known/oauth-protected-resource', resourceUri(request)).toString()
