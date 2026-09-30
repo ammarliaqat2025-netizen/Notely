@@ -7,6 +7,24 @@ interface NoteRequest {
   started_at?: unknown
 }
 
+interface DocumentRow {
+  id: string
+  user_id: string
+  title: string
+  body: string
+  started_at: string | null
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+interface VersionRow {
+  document_id: string
+  version_number: number
+  body: string
+  created_at: string
+}
+
 function parseNoteInput(value: unknown): {
   title: string
   body: string
@@ -27,28 +45,14 @@ function parseNoteInput(value: unknown): {
   return { title, body, startedAt }
 }
 
-interface DocumentRow {
-  id: string
-  user_id: string
-  title: string
-  body: string
-  started_at: string | null
-  status: string
-  created_at: string
-  updated_at: string
-}
-
-function toNote(row: DocumentRow) {
-  return {
-    id: row.id,
-    user_id: row.user_id,
-    title: row.title,
-    body: row.body,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    started_at: row.started_at,
-    history: [],
-  }
+function toHistory(versions: VersionRow[]): { content: string; timestamp: number }[] {
+  return versions
+    .slice()
+    .sort((a, b) => a.version_number - b.version_number)
+    .map(version => ({
+      content: version.body,
+      timestamp: Date.parse(version.created_at),
+    }))
 }
 
 export async function GET() {
@@ -59,19 +63,62 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { data, error } = await supabase
+  const { data: documents, error: documentsError } = await supabase
     .from('documents')
     .select('id,user_id,title,body,started_at,status,created_at,updated_at')
     .eq('user_id', user.id)
     .eq('status', 'active')
     .order('updated_at', { ascending: false })
 
-  if (error) {
-    console.error('Failed to load notes:', error)
+  if (documentsError) {
+    console.error('Failed to load notes:', documentsError)
     return NextResponse.json({ error: 'Failed to load notes' }, { status: 500 })
   }
 
-  return NextResponse.json((data as DocumentRow[]).map(toNote))
+  const rows = (documents ?? []) as DocumentRow[]
+  if (rows.length === 0) return NextResponse.json([])
+
+  const { data: versions, error: versionsError } = await supabase
+    .from('document_versions')
+    .select('document_id,version_number,body,created_at')
+    .in('document_id', rows.map(row => row.id))
+    .order('version_number', { ascending: true })
+
+  if (versionsError) {
+    console.error('Failed to load note history:', versionsError)
+    return NextResponse.json(rows.map(row => ({
+      id: row.id,
+      user_id: row.user_id,
+      title: row.title,
+      body: row.body,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      started_at: row.started_at,
+      history: [{ content: row.body, timestamp: Date.parse(row.started_at ?? row.created_at) }],
+      synced: true,
+    })))
+  }
+
+  const byDocument = new Map<string, VersionRow[]>()
+  for (const version of (versions ?? []) as VersionRow[]) {
+    const existing = byDocument.get(version.document_id) ?? []
+    existing.push(version)
+    byDocument.set(version.document_id, existing)
+  }
+
+  return NextResponse.json(rows.map(row => ({
+    id: row.id,
+    user_id: row.user_id,
+    title: row.title,
+    body: row.body,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    started_at: row.started_at,
+    history: byDocument.get(row.id)?.length
+      ? toHistory(byDocument.get(row.id)!)
+      : [{ content: row.body, timestamp: Date.parse(row.started_at ?? row.created_at) }],
+    synced: true,
+  })))
 }
 
 export async function POST(request: Request) {
@@ -110,5 +157,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to create note' }, { status: 500 })
   }
 
-  return NextResponse.json(toNote(data as DocumentRow), { status: 201 })
+  const document = data as DocumentRow
+  const { error: versionError } = await supabase
+    .from('document_versions')
+    .insert({
+      document_id: document.id,
+      version_number: 1,
+      body: document.body,
+    })
+
+  if (versionError) {
+    console.error('Failed to create initial note version:', versionError)
+  }
+
+  return NextResponse.json({
+    id: document.id,
+    user_id: document.user_id,
+    title: document.title,
+    body: document.body,
+    created_at: document.created_at,
+    updated_at: document.updated_at,
+    started_at: document.started_at,
+    history: [{ content: document.body, timestamp: Date.parse(document.started_at ?? document.created_at) }],
+    synced: true,
+  }, { status: 201 })
 }
