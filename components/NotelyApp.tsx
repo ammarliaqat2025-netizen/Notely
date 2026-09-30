@@ -340,6 +340,12 @@ export default function NotelyApp() {
             setBody(incoming.body)
             startedAtRef.current = incoming.started_at ?? null
             setStartedAt(incoming.started_at ?? null)
+            setHistory(prev => {
+              const timestamp = Date.parse(incoming.updated_at)
+              const last = prev[prev.length - 1]
+              if (last?.content === incoming.body) return prev
+              return [...prev, { content: incoming.body, timestamp }]
+            })
             setWordCount(incoming.body.trim() ? incoming.body.trim().split(/\s+/).length : 0)
             setSaveStatus('saved')
           }
