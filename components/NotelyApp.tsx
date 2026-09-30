@@ -560,15 +560,49 @@ export default function NotelyApp() {
 
   const handleDelete = useCallback(async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (userRef.current && !id.startsWith('temp-')) {
-      await fetch(`/api/notes/${id}`, { method: 'DELETE' })
-    }
-    const updated = notesRef.current.filter(n => n.id !== id)
-    if (!userRef.current) saveGuest(updated)
+
+    const wasActive = activeIdRef.current === id
+    const previousNotes = notesRef.current
+    const deletedNote = previousNotes.find(note => note.id === id)
+    if (!deletedNote) return
+
+    const updated = previousNotes.filter(note => note.id !== id)
+
+    // Optimistic UI: remove immediately and move the editor without waiting on the network.
+    notesRef.current = updated
     setNotes(updated)
-    if (activeIdRef.current === id) {
+    if (!userRef.current) saveGuest(updated)
+
+    if (wasActive) {
       if (updated.length > 0) openNote(updated[0])
-      else { clearEditor(); setMobileView('list') }
+      else {
+        clearEditor()
+        setMobileView('list')
+      }
+    }
+
+    if (!userRef.current || id.startsWith('temp-')) return
+
+    try {
+      const response = await fetch(`/api/notes/${id}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) throw new Error('Delete failed')
+    } catch (error) {
+      console.error('Failed to delete note:', error)
+
+      // Roll back only if the note was not replaced by a newer local state.
+      setNotes(current => {
+        const restored = current.some(note => note.id === id)
+          ? current
+          : [...current, deletedNote]
+        notesRef.current = restored
+        return restored
+      })
+
+      if (wasActive && activeIdRef.current !== id) {
+        openNote(deletedNote)
+      }
     }
   }, [])
 
