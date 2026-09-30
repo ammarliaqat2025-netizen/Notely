@@ -5,8 +5,8 @@ import * as z from 'zod/v4'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const SCOPES = ['notes:read', 'notes:write', 'timeline:read', 'search:read', 'context:read', 'intelligence:read'] as const
-type Scope = (typeof SCOPES)[number]
+import { MCP_SCOPES, MCP_TOOL_REGISTRY, type McpScope } from '@/lib/mcp/registry'
+type Scope = McpScope
 
 type AuthContext = {
   userId: string
@@ -63,12 +63,14 @@ async function verifyAccessToken(token: string, resource: string): Promise<AuthI
   const tokenHash = await sha256(token)
   const { data, error } = await supabase
     .from('mcp_oauth_tokens')
-    .select('user_id,client_id,scopes,expires_at,revoked_at,resource')
+    .select('user_id,client_id,scopes,expires_at,revoked_at,resource,token_hash')
     .eq('token_hash', tokenHash)
     .maybeSingle()
   if (error) throw new OAuthError(OAuthErrorCode.ServerError, 'Authorization service unavailable')
   if (!data) throw new OAuthError(OAuthErrorCode.InvalidToken, 'Invalid or expired access token')
-  if (data.revoked_at || new Date(data.expires_at).getTime() <= Date.now()) {
+  const grant = await supabase.from('mcp_oauth_grants').select('revoked_at').eq('user_id', data.user_id).eq('client_id', data.client_id).maybeSingle()
+  if (grant.error) throw new OAuthError(OAuthErrorCode.ServerError, 'Authorization service unavailable')
+  if (data.revoked_at || grant.data?.revoked_at || new Date(data.expires_at).getTime() <= Date.now()) {
     throw new OAuthError(OAuthErrorCode.InvalidToken, 'Invalid or expired access token')
   }
   if (data.resource !== resource) throw new OAuthError(OAuthErrorCode.InvalidToken, 'Token is not valid for this resource')
@@ -263,7 +265,7 @@ export function buildServer(request: Request, info?: AuthInfo) {
     if (!q) throw new Error('VALIDATION_ERROR')
     const cursor = cursorDecode(input.cursor)
     if (input.cursor && !cursor) throw new Error('VALIDATION_ERROR')
-    let search = client.from('documents').select(noteProjection).eq('user_id',ctx.userId).eq('status','active') .textSearch('search_vector',q,{type:'websearch',config:'simple'}).order('started_at',{ascending:false}).order('id',{ascending:false}).limit(input.limit+1)
+    let search = client.from('documents').select(noteProjection).eq('user_id',ctx.userId).eq('status','active').textSearch('search_vector',q,{type:'websearch',config:'simple'}).order('started_at',{ascending:false}).order('id',{ascending:false}).limit(input.limit+1)
     if (input.started_after) search = search.gte('started_at',input.started_after)
     if (input.started_before) search = search.lte('started_at',input.started_before)
     if (cursor) search = search.or(`started_at.lt.${cursor.startedAt},and(started_at.eq.${cursor.startedAt},id.lt.${cursor.id})`)
@@ -339,7 +341,7 @@ export function buildServer(request: Request, info?: AuthInfo) {
     started_after:z.string().datetime({offset:true}).optional(),started_before:z.string().datetime({offset:true}).optional()
   }), async(ctx,input)=>{
     const needle=safeQuery(input.query)
-    let q=client.from('documents').select(noteProjection).eq('user_id',ctx.userId).eq('status','active') .textSearch('search_vector',needle,{type:'websearch',config:'simple'}).order('started_at',{ascending:false}).limit(Math.min(input.limit,25))
+    let q=client.from('documents').select(noteProjection).eq('user_id',ctx.userId).eq('status','active').textSearch('search_vector',needle,{type:'websearch',config:'simple'}).order('started_at',{ascending:false}).limit(Math.min(input.limit,25))
     if(input.started_after) q=q.gte('started_at',input.started_after); if(input.started_before) q=q.lte('started_at',input.started_before)
     const {data,error}=await q; if(error) throw new Error('INTERNAL_ERROR')
     const notes=(data??[]) as Note[]
