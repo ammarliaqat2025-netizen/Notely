@@ -138,6 +138,11 @@ function Editor({
   const displayBody = travelIndex >= 0 && history[travelIndex]
     ? history[travelIndex].content
     : body
+  const saveStatusLabels: Record<EditorProps['saveStatus'], string> = {
+    saved: '● saved',
+    saving: '○ saving…',
+    error: '● save failed',
+  }
 
   return (
     <div className="editor-wrap">
@@ -166,7 +171,7 @@ function Editor({
         <div className="tool-sep" />
         <span className="word-count" style={{ marginLeft: 'auto' }}>{wordCount}w</span>
         <span className={`save-status ${saveStatus}`} aria-live="polite">
-          {saveStatus === 'saved' ? '● saved' : saveStatus === 'error' ? '● save failed' : '○ saving…'}
+          {saveStatusLabels[saveStatus]}
         </span>
       </div>
 
