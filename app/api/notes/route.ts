@@ -33,6 +33,7 @@ interface DocumentRow {
   title: string
   body: string
   started_at: string | null
+  status: string
   created_at: string
   updated_at: string
 }
@@ -60,7 +61,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('documents')
-    .select('id,user_id,title,body,started_at,created_at,updated_at')
+    .select('id,user_id,title,body,started_at,status,created_at,updated_at')
     .eq('user_id', user.id)
     .eq('status', 'active')
     .order('updated_at', { ascending: false })
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
       body: parsed.body,
       started_at: parsed.startedAt,
     })
-    .select('id,user_id,title,body,started_at,created_at,updated_at')
+    .select('id,user_id,title,body,started_at,status,created_at,updated_at')
     .single()
 
   if (error || !data) {
