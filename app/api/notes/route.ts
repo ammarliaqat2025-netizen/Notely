@@ -163,6 +163,7 @@ export async function POST(request: Request) {
     .insert({
       document_id: document.id,
       version_number: 1,
+      title: document.title,
       body: document.body,
     })
 
