@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import type { User } from '@supabase/supabase-js'
 
-interface NoteVersion { content: string; timestamp: number }
+interface NoteVersion { content: string; timestamp: number; source: 'capture' | 'edit' | 'restore' }
 
 interface Note {
   id: string
@@ -33,6 +33,16 @@ function fmtFull(iso: string) {
 }
 function fmtShortTime(ts: number) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+}
+
+function createCaptureTimestamp() {
+  return new Date().toISOString()
+}
+
+function toTimestampMs(iso: string | null | undefined) {
+  if (!iso) return null
+  const parsed = Date.parse(iso)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 const GUEST_KEY = 'notely_notes'
@@ -287,7 +297,12 @@ export default function NotelyApp() {
     setBody(note.body)
     setStartedAt(note.started_at || null)
     setWordCount(note.body.trim() ? note.body.trim().split(/\s+/).length : 0)
-    setHistory(note.history || [{ content: note.body, timestamp: Date.now() }])
+    const capturedAt = toTimestampMs(note.started_at)
+    setHistory(note.history?.length ? note.history : [{
+      content: note.body,
+      timestamp: capturedAt ?? toTimestampMs(note.created_at) ?? Date.now(),
+      source: 'capture'
+    }])
     setTravelIndex(-1)
     setSaveStatus('saved')
     setAiStatus('')
@@ -299,9 +314,10 @@ export default function NotelyApp() {
   async function newNote() {
     const now = new Date().toISOString()
     const tempId = `temp-${Date.now()}`
+    const captureTimestamp = Date.now()
     const tempNote: Note = {
       id: tempId, title: '', body: '', created_at: now, updated_at: now,
-      started_at: now, history: [{ content: '', timestamp: Date.now() }], synced: false
+      started_at: now, history: [{ content: '', timestamp: captureTimestamp, source: 'capture' }], synced: false
     }
     const updated = [tempNote, ...notesRef.current]
     setNotes(updated)
@@ -353,13 +369,13 @@ export default function NotelyApp() {
     saveTimer.current = setTimeout(() => doSave(t, b, sa), 800)
   }
 
-  function addToHistory(b: string) {
+  function addToHistory(b: string, source: NoteVersion['source'] = 'edit') {
     if (historyTimer.current) clearTimeout(historyTimer.current)
     historyTimer.current = setTimeout(() => {
       setHistory(prev => {
         const last = prev[prev.length - 1]
         if (last?.content === b) return prev
-        return [...prev, { content: b, timestamp: Date.now() }]
+        return [...prev, { content: b, timestamp: Date.now(), source }]
       })
     }, 2000)
   }
@@ -389,7 +405,7 @@ export default function NotelyApp() {
     setBody(restored)
     setTravelIndex(-1)
     scheduleSave(title, restored, startedAt)
-    addToHistory(restored)
+    addToHistory(restored, 'restore')
   }
 
   const onTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
