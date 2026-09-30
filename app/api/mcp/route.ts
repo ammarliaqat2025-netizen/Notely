@@ -159,22 +159,22 @@ function registerTool(
   group: string,
   scopes: Scope[],
   description: string,
-  inputSchema: Record<string, unknown>,
-  handler: (ctx: AuthContext, input: any) => Promise<CallToolResult>
+  inputSchema: z.ZodType,
+  handler: (ctx: AuthContext, input: z.infer<typeof inputSchema>) => Promise<CallToolResult>
 ) {
   const authorized = auth !== null && scopes.every(scope => auth.scopes.includes(scope))
   const registered = server.registerTool(
     name,
     {
       description: `[FutureMinds MCP v1] ${description}`,
-      inputSchema: inputSchema as any,
+      inputSchema,
       annotations: {
         readOnlyHint: action === 'READ',
         destructiveHint: action === 'DELETE',
         idempotentHint: action !== 'WRITE',
       },
     },
-    async (input: any) => {
+    async (input) => {
       if (!auth) return failure('AUTH_REQUIRED')
       const started = performance.now()
       const requestId = await currentRequestId(request)
