@@ -147,6 +147,7 @@ export async function PATCH(
         .insert({
           document_id: document.id,
           version_number: nextVersion,
+          title: document.title,
           body: document.body,
         })
 
