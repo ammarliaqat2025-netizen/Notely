@@ -533,7 +533,10 @@ export default function NotelyApp() {
     setTravelIndex(-1)
   }
 
-  function onTravel(idx: number) { setTravelIndex(idx) }
+  function onTravel(idx: number) {
+    if (history.length === 0) return
+    setTravelIndex(Math.max(0, Math.min(idx, history.length - 1)))
+  }
 
   function onRestoreVersion() {
     if (travelIndex < 0 || !history[travelIndex]) return
