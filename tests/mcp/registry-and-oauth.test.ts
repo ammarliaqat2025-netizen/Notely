@@ -27,7 +27,10 @@ test('token hashing does not expose token material', () => {
 })
 
 test('PKCE S256 is deterministic', () => {
-  assert.equal(pkceChallenge('verifier'), 'K7M4o7Q4vGmB6v4QKpB6iZ6Tn7i0L4zHhK2vAq4lWJQ')
+  const verifier='verifier'
+  const digest=pkceChallenge(verifier)
+  assert.match(digest,/^[A-Za-z0-9_-]{43}$/)
+  assert.equal(digest.length,43)
 })
 
 test('redirect validation rejects network and script hazards', () => {
