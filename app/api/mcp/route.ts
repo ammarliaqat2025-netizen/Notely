@@ -150,7 +150,7 @@ async function currentRequestId(request: Request): Promise<string> {
   return crypto.randomUUID()
 }
 
-function registerTool(
+function registerTool<TSchema extends z.ZodType>(
   server: McpServer,
   request: Request,
   auth: AuthContext | null,
@@ -159,8 +159,8 @@ function registerTool(
   group: string,
   scopes: Scope[],
   description: string,
-  inputSchema: z.ZodType,
-  handler: (ctx: AuthContext, input: z.infer<typeof inputSchema>) => Promise<CallToolResult>
+  inputSchema: TSchema,
+  handler: (ctx: AuthContext, input: z.infer<TSchema>) => Promise<CallToolResult>
 ) {
   const authorized = auth !== null && scopes.every(scope => auth.scopes.includes(scope))
   const registered = server.registerTool(
