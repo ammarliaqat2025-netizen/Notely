@@ -17,6 +17,7 @@ type AuthContext = {
 type Note = {
   id: string
   user_id: string
+  provenance: 'user_created' | 'imported' | 'system_derived' | 'ai_derived'
   title: string
   body: string
   started_at: string
@@ -26,7 +27,7 @@ type Note = {
   archived_at: string | null
 }
 
-const noteProjection = 'id,user_id,title,body,started_at,status,created_at,updated_at,archived_at'
+const noteProjection = 'id,user_id,provenance,title,body,started_at,status,created_at,updated_at,archived_at'
 
 function admin() {
   const url = process.env.SUPABASE_URL
