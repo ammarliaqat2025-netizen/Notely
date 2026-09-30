@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { assertRegistryIntegrity, MCP_TOOL_REGISTRY, visibleTools } from '../../lib/mcp/registry'
-import { hashToken, parseScope, pkceChallenge, validRedirectUri } from '../../lib/mcp/oauth'
+import { assertRegistryIntegrity, MCP_TOOL_REGISTRY, visibleTools } from '../../lib/mcp/registry.ts'
+import { hashToken, parseScope, pkceChallenge, validRedirectUri } from '../../lib/mcp/oauth.ts'
 
 test('registry integrity', () => {
   assert.doesNotThrow(() => assertRegistryIntegrity())
