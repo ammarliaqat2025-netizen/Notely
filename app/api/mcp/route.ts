@@ -199,40 +199,37 @@ export function buildServer(request: Request, info?: AuthInfo) {
   const auth = info ? authContext(info) : null
   const client = admin()
 
-  server.registerTool('search_tools', {
-    description: '[FutureMinds MCP v1] Discover only tools visible to the current authorization scope.',
-    inputSchema: z.object({ query: z.string().max(120).optional(), capability_group: z.string().max(40).optional() }),
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true }
-  }, async ({ query, capability_group }) => {
-    if (!auth) return failure('AUTH_REQUIRED')
-    const all = [
-      ['search_tools','core','READ','search_tools'],
-      ['get_note','notes','READ','Get one active note by id'],
-      ['query_notes','notes','READ','Query active notes with stable cursor pagination'],
-      ['create_note','notes','WRITE','Create a note with idempotency protection'],
-      ['update_note','notes','WRITE','Update a note using optimistic concurrency'],
-      ['delete_note','notes','DELETE','Soft-delete a note'],
-      ['restore_note','notes','WRITE','Restore a soft-deleted note'],
-      ['search_notes','search','READ','Lexically search notes with temporal filters'],
-      ['get_timeline','timeline','READ','Get the capture timeline using started_at'],
-      ['get_notes_for_period','timeline','READ','Get active notes for an explicit time period'],
-      ['get_note_versions','versions','READ','Get bounded note version history'],
-      ['get_note_version','versions','READ','Get one note version'],
-      ['assemble_notely_context','context','READ','Assemble bounded source-backed evidence for external AI reasoning'],
-      ['search_saved_links','links','READ','Search saved link metadata owned by the account'],
-      ['get_link_context','links','READ','Return one saved link and its linked notes']
-    ] as const
-    const required: Record<string, Scope> = {
-      search_tools:'search:read', get_note:'notes:read', query_notes:'notes:read', create_note:'notes:write', update_note:'notes:write',
-      delete_note:'notes:write', restore_note:'notes:write', search_notes:'search:read', get_timeline:'timeline:read',
-      get_notes_for_period:'timeline:read', get_note_versions:'notes:read', get_note_version:'notes:read',
-      assemble_notely_context:'context:read', search_saved_links:'search:read', get_link_context:'search:read'
+  registerTool(
+    server,
+    request,
+    auth,
+    'search_tools',
+    'READ',
+    'core',
+    ['search:read'],
+    'Discover only tools visible to the current authorization scope.',
+    z.object({ query: z.string().max(120).optional(), capability_group: z.string().max(40).optional() }),
+    async (ctx, input) => {
+      const visible = MCP_TOOL_REGISTRY
+        .filter(tool => tool.required_scopes.every(scope => ctx.scopes.includes(scope)))
+        .filter(tool => !input.capability_group || tool.capability_group === input.capability_group)
+        .filter(tool => {
+          const query = (input.query ?? '').trim().toLowerCase()
+          if (!query) return true
+          return [tool.name, tool.capability_group, tool.action, tool.description].some(value => value.toLowerCase().includes(query))
+        })
+        .map(tool => ({
+          tool: tool.name,
+          version: tool.version,
+          group: tool.capability_group,
+          action: tool.action,
+          description: tool.description,
+          required_scopes: tool.required_scopes,
+          risk: tool.risk,
+        }))
+      return result({ tools: visible })
     }
-    const needle = safeQuery(query ?? '').toLowerCase()
-    const visible = all.filter(item => auth.scopes.includes(required[item[0]]) && (!capability_group || item[1] === capability_group) && (!needle || item.join(' ').toLowerCase().includes(needle)))
-      .map(item => ({ tool: item[0], version:'v1', group:item[1], action:item[2], description:item[3], required_scope:required[item[0]] }))
-    return result({ tools: visible })
-  })
+  )
 
   registerTool(server, request, auth, 'get_note', 'READ', 'notes', ['notes:read'], 'Retrieve one active note by id.', z.object({ note_id: z.string().uuid() }), async (ctx, input) => {
     const { data, error } = await client.from('documents').select(noteProjection).eq('id', input.note_id).eq('user_id', ctx.userId).eq('status','active').maybeSingle()
