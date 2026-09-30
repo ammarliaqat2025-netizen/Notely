@@ -534,7 +534,7 @@ export default function NotelyApp() {
     setBody(v)
     activeDraftRef.current.body = v
     setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0)
-    scheduleSave(title, v, sa)
+    scheduleSave(activeDraftRef.current.title, v, sa)
     addToHistory(v)
     setTravelIndex(-1)
   }
