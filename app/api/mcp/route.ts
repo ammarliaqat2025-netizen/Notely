@@ -158,7 +158,7 @@ function registerTool(
   scopes: Scope[],
   description: string,
   inputSchema: z.ZodType | undefined,
-  handler: (ctx: AuthContext, input: never) => Promise<ReturnType<typeof result> | ReturnType<typeof failure>>
+  handler: (ctx: AuthContext, input: unknown) => Promise<ReturnType<typeof result> | ReturnType<typeof failure>>
 ) {
   server.registerTool(name, {
     description: `[FutureMinds MCP v1] ${description}`,
