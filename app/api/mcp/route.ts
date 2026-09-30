@@ -105,7 +105,7 @@ async function audit(ctx: AuthContext, tool: string, action: 'READ' | 'WRITE' | 
 }
 
 function authContext(info: AuthInfo): AuthContext {
-  const userId = typeof info.extra?.user_id === 'string' ? info.extra.user_id : info.clientId
+  const userId = typeof info.extra?.user_id === 'string' ? info.extra.user_id : ''
   const scopes = (info.scopes ?? []).filter((value): value is Scope => MCP_SCOPES.includes(value as Scope))
   if (!userId || !info.clientId) throw new Error('AUTH_REQUIRED')
   return { userId, clientId: info.clientId, scopes }
@@ -158,9 +158,10 @@ function registerTool(
   scopes: Scope[],
   description: string,
   inputSchema: z.ZodType | undefined,
-  handler: (ctx: AuthContext, input: unknown) => Promise<ReturnType<typeof result> | ReturnType<typeof failure>>
+  handler: (ctx: AuthContext, input: unknown) => Promise<{ content: { type: 'text'; text: string }[]; isError?: boolean }>
 ) {
-  server.registerTool(name, {
+  const required = scopes.every(scope => auth?.scopes.includes(scope) === true)
+  const registered = server.registerTool(name, {
     description: `[FutureMinds MCP v1] ${description}`,
     inputSchema,
     annotations: { readOnlyHint: action === 'READ', destructiveHint: action === 'DELETE', idempotentHint: action !== 'WRITE' }
@@ -171,8 +172,8 @@ function registerTool(
     try {
       requireScope(auth, scopes[0])
       await consumeRateLimit(auth, name, action)
-      const output = await handler(auth, input as never)
-      await audit(auth, name, action, !output.isError, performance.now() - started, requestId, output.isError ? 'TOOL_ERROR' : undefined)
+      const output = await handler(auth, input)
+      await audit(auth, name, action, output.isError !== true, performance.now() - started, requestId, output.isError === true ? 'TOOL_ERROR' : undefined)
       return output
     } catch (error) {
       const code = error instanceof Error ? error.message : 'INTERNAL_ERROR'
@@ -181,6 +182,7 @@ function registerTool(
       return failure(normalized)
     }
   })
+  if (!required) registered.disable()
 }
 
 export function buildServer(request: Request, info?: AuthInfo) {
