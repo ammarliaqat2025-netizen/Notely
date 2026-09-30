@@ -1,4 +1,4 @@
-import { createMcpHandler, McpServer, OAuthError, OAuthErrorCode, requireBearerAuth, type AuthInfo } from '@modelcontextprotocol/server'
+import { bearerAuthChallengeResponse, createMcpHandler, McpServer, OAuthError, OAuthErrorCode, requireBearerAuth, type AuthInfo } from '@modelcontextprotocol/server'
 import { createClient } from '@supabase/supabase-js'
 import * as z from 'zod/v4'
 
@@ -74,7 +74,7 @@ async function verifyAccessToken(token: string, resource: string): Promise<AuthI
     throw new OAuthError(OAuthErrorCode.InvalidToken, 'Invalid or expired access token')
   }
   if (data.resource !== resource) throw new OAuthError(OAuthErrorCode.InvalidToken, 'Token is not valid for this resource')
-  const scopes = Array.isArray(data.scopes) ? data.scopes.filter((value): value is Scope => SCOPES.includes(value as Scope)) : []
+  const scopes = Array.isArray(data.scopes) ? data.scopes.filter((value): value is Scope => MCP_SCOPES.includes(value as Scope)) : []
   return {
     token,
     clientId: data.client_id,
@@ -117,7 +117,7 @@ async function audit(ctx: AuthContext, tool: string, action: 'READ' | 'WRITE' | 
 
 function authContext(info: AuthInfo): AuthContext {
   const userId = typeof info.extra?.user_id === 'string' ? info.extra.user_id : info.clientId
-  const scopes = (info.scopes ?? []).filter((value): value is Scope => SCOPES.includes(value as Scope))
+  const scopes = (info.scopes ?? []).filter((value): value is Scope => MCP_SCOPES.includes(value as Scope))
   if (!userId || !info.clientId) throw new Error('AUTH_REQUIRED')
   return { userId, clientId: info.clientId, scopes }
 }
