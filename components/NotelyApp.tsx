@@ -99,7 +99,7 @@ interface EditorProps {
   title: string
   body: string
   startedAt: string | null
-  saveStatus: 'saved' | 'saving'
+  saveStatus: 'saved' | 'saving' | 'error'
   wordCount: number
   aiStatus: string
   history: NoteVersion[]
