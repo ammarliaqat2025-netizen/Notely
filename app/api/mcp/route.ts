@@ -41,10 +41,6 @@ function envOrigin(request: Request): string {
   return new URL(request.url).origin
 }
 
-function hash(value: string): string {
-  return crypto.subtle ? '' : value
-}
-
 async function sha256(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value)
   const digest = await crypto.subtle.digest('SHA-256', bytes)
@@ -267,7 +263,7 @@ export function buildServer(request: Request, info?: AuthInfo) {
     if (!q) throw new Error('VALIDATION_ERROR')
     const cursor = cursorDecode(input.cursor)
     if (input.cursor && !cursor) throw new Error('VALIDATION_ERROR')
-    let search = client.from('documents').select(noteProjection).eq('user_id',ctx.userId).eq('status','active').textSearch('body',q,{type:'websearch',config:'simple'}).order('started_at',{ascending:false}).order('id',{ascending:false}).limit(input.limit+1)
+    let search = client.from('documents').select(noteProjection).eq('user_id',ctx.userId).eq('status','active') .textSearch('search_vector',q,{type:'websearch',config:'simple'}).order('started_at',{ascending:false}).order('id',{ascending:false}).limit(input.limit+1)
     if (input.started_after) search = search.gte('started_at',input.started_after)
     if (input.started_before) search = search.lte('started_at',input.started_before)
     if (cursor) search = search.or(`started_at.lt.${cursor.startedAt},and(started_at.eq.${cursor.startedAt},id.lt.${cursor.id})`)
@@ -343,7 +339,7 @@ export function buildServer(request: Request, info?: AuthInfo) {
     started_after:z.string().datetime({offset:true}).optional(),started_before:z.string().datetime({offset:true}).optional()
   }), async(ctx,input)=>{
     const needle=safeQuery(input.query)
-    let q=client.from('documents').select(noteProjection).eq('user_id',ctx.userId).eq('status','active').textSearch('body',needle,{type:'websearch',config:'simple'}).order('started_at',{ascending:false}).limit(Math.min(input.limit,25))
+    let q=client.from('documents').select(noteProjection).eq('user_id',ctx.userId).eq('status','active') .textSearch('search_vector',needle,{type:'websearch',config:'simple'}).order('started_at',{ascending:false}).limit(Math.min(input.limit,25))
     if(input.started_after) q=q.gte('started_at',input.started_after); if(input.started_before) q=q.lte('started_at',input.started_before)
     const {data,error}=await q; if(error) throw new Error('INTERNAL_ERROR')
     const notes=(data??[]) as Note[]
