@@ -297,7 +297,6 @@ export default function NotelyApp() {
     setHistory(note.history?.length ? note.history : [{
       content: note.body,
       timestamp: capturedAt ?? toTimestampMs(note.created_at) ?? Date.now(),
-      source: 'capture'
     }])
     setTravelIndex(-1)
     setSaveStatus('saved')
