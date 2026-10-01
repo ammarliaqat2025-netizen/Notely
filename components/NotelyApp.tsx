@@ -269,6 +269,7 @@ export default function NotelyApp() {
   useEffect(() => { activeDraftRef.current = { title, body } }, [title, body])
 
   useEffect(() => {
+    if (!supabase) return
     supabase.auth.getUser().then(({ data }) => setUser(data.user))
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setUser(session?.user ?? null)
@@ -288,7 +289,7 @@ export default function NotelyApp() {
   }, [user])
 
   useEffect(() => {
-    if (!user) return
+    if (!user || !supabase) return
 
     const channel = supabase
       .channel(`documents:${user.id}`)
@@ -633,6 +634,10 @@ export default function NotelyApp() {
   function handleExport() { exportTxt(title, body, startedAt) }
 
   async function handleAuth() {
+    if (!supabase) {
+      setAuthError('Cloud sync is not configured. Your notes are saved on this device.')
+      return
+    }
     setAuthError(''); setAuthLoading(true)
     let error
     if (authMode === 'signup') {
@@ -646,7 +651,7 @@ export default function NotelyApp() {
   }
 
   async function signOut() {
-    await supabase.auth.signOut()
+    await supabase?.auth.signOut()
     setNotes(loadGuest()); clearEditor(); setMobileView('list')
   }
 
