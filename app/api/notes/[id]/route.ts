@@ -130,8 +130,6 @@ export async function PATCH(
   }
 
   const document = data as DocumentRow
-  const bodyChanged = document.body !== (before as DocumentRow).body
-
   {
     const { data: latestVersion, error: versionLookupError } = await supabase
       .from('document_versions')
@@ -148,7 +146,7 @@ export async function PATCH(
 
     const latest = latestVersion as { version_number: number; title: string; body: string } | null
     // Recover a version write that failed after the document update succeeded.
-    if (bodyChanged || latest?.body !== document.body) {
+    if (latest?.body !== document.body) {
       const nextVersion = (latest?.version_number ?? 0) + 1
       const { error: versionError } = await supabase
         .from('document_versions')
