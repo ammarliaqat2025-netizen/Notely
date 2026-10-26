@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import type { User } from '@supabase/supabase-js'
+import { mergeCreatedNote, shouldApplyRemoteNote } from '@/lib/note-editor-state.js'
 
 interface NoteVersion { content: string; timestamp: number }
 
@@ -341,7 +342,7 @@ export default function NotelyApp() {
             return updated
           })
 
-          if (activeIdRef.current === row.id && !dirtyFieldsRef.current.title && !dirtyFieldsRef.current.body && saveStatus !== 'saving') {
+          if (shouldApplyRemoteNote(activeIdRef.current, row.id, dirtyFieldsRef.current)) {
             setActiveId(row.id)
             activeIdRef.current = row.id
             setTitle(incoming.title)
@@ -472,7 +473,7 @@ export default function NotelyApp() {
           setNotes(prev => {
             // The realtime INSERT may arrive before the POST response. Replace the
             // optimistic draft and deduplicate the same server note by its real ID.
-            const updated = [resolvedNote, ...prev.filter(note => note.id !== tempId && note.id !== cloud.id)]
+            const updated = mergeCreatedNote(prev, tempId, resolvedNote)
             notesRef.current = updated
             return updated
           })
