@@ -409,7 +409,9 @@ export default function NotelyApp() {
   async function newNote() {
     if (creationInFlightRef.current) return
     creationInFlightRef.current = true
-    const retryDraft = notesRef.current.find(note => note.id === activeIdRef.current && note.id.startsWith('temp-') && note.creationKey)
+    const retryDraft = userRef.current && saveStatus === 'error'
+      ? notesRef.current.find(note => note.id === activeIdRef.current && note.id.startsWith('temp-') && note.creationKey)
+      : undefined
     const now = retryDraft?.started_at ?? new Date().toISOString()
     const creationKey = retryDraft?.creationKey ?? crypto.randomUUID()
     const tempId = retryDraft?.id ?? `temp-${creationKey}`
