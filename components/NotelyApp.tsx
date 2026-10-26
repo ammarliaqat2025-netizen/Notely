@@ -706,7 +706,12 @@ export default function NotelyApp() {
         ) : (
           <>
             <button className="mobile-back-btn" onClick={() => {
-              if (saveTimer.current) { clearTimeout(saveTimer.current); doSave(title, body, startedAt) }
+              if (saveTimer.current) {
+                clearTimeout(saveTimer.current)
+                saveTimer.current = null
+                const id = activeIdRef.current
+                if (id) void doSave(id, title, body, startedAt)
+              }
               setMobileView('list')
             }}>
               <svg width="17" height="17" viewBox="0 0 17 17" fill="none">
