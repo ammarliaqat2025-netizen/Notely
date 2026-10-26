@@ -261,6 +261,8 @@ export default function NotelyApp() {
   const localWriteRef = useRef<string | null>(null)
   const saveSequenceRef = useRef(0)
   const activeDraftRef = useRef({ title: '', body: '' })
+  const creationInFlightRef = useRef(false)
+  const dirtyFieldsRef = useRef({ title: false, body: false })
 
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
   useEffect(() => { userRef.current = user }, [user])
@@ -335,7 +337,7 @@ export default function NotelyApp() {
               : [incoming, ...prev]
           })
 
-          if (activeIdRef.current === row.id) {
+          if (activeIdRef.current === row.id && !dirtyFieldsRef.current.title && !dirtyFieldsRef.current.body && saveStatus !== 'saving') {
             setActiveId(row.id)
             activeIdRef.current = row.id
             setTitle(incoming.title)
@@ -378,6 +380,10 @@ export default function NotelyApp() {
   }
 
   function openNote(note: Note) {
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
+    if (historyTimer.current) { clearTimeout(historyTimer.current); historyTimer.current = null }
+    saveSequenceRef.current++
+    dirtyFieldsRef.current = { title: false, body: false }
     activeIdRef.current = note.id
     startedAtRef.current = note.started_at || null
     setActiveId(note.id)
@@ -400,6 +406,8 @@ export default function NotelyApp() {
 
   // ── INSTANT NEW NOTE ──
   async function newNote() {
+    if (creationInFlightRef.current) return
+    creationInFlightRef.current = true
     const now = new Date().toISOString()
     const tempId = `temp-${Date.now()}`
     const captureTimestamp = Date.now()
@@ -457,12 +465,15 @@ export default function NotelyApp() {
         }
       } catch {
         setSaveStatus('error')
+      } finally {
+        creationInFlightRef.current = false
       }
+    } else {
+      creationInFlightRef.current = false
     }
   }
 
-  const doSave = useCallback(async (t: string, b: string, sa: string | null) => {
-    const id = activeIdRef.current
+  const doSave = useCallback(async (id: string, t: string, b: string, sa: string | null) => {
     if (!id || id.startsWith('temp-')) return
 
     const sequence = ++saveSequenceRef.current
@@ -476,7 +487,7 @@ export default function NotelyApp() {
         body: JSON.stringify({ title: t, body: b, started_at: sa })
       })
       localWriteRef.current = null
-      if (sequence !== saveSequenceRef.current) return
+      if (sequence !== saveSequenceRef.current || activeIdRef.current !== id) return
       if (!response.ok) {
         setSaveStatus('error')
         return
@@ -493,12 +504,15 @@ export default function NotelyApp() {
       return updated
     })
     setSaveStatus('saved')
+    dirtyFieldsRef.current = { title: false, body: false }
   }, [])
 
   function scheduleSave(t: string, b: string, sa: string | null) {
+    const id = activeIdRef.current
+    if (!id) return
     setSaveStatus('saving')
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => { void doSave(t, b, sa) }, 300)
+    saveTimer.current = setTimeout(() => { void doSave(id, t, b, sa) }, 300)
   }
 
   function addToHistory(b: string) {
@@ -520,6 +534,7 @@ export default function NotelyApp() {
       setStartedAt(sa)
     }
     setTitle(v)
+    dirtyFieldsRef.current.title = true
     activeDraftRef.current.title = v
     scheduleSave(v, activeDraftRef.current.body, sa)
   }
@@ -532,6 +547,7 @@ export default function NotelyApp() {
       setStartedAt(sa)
     }
     setBody(v)
+    dirtyFieldsRef.current.body = true
     activeDraftRef.current.body = v
     setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0)
     scheduleSave(activeDraftRef.current.title, v, sa)
