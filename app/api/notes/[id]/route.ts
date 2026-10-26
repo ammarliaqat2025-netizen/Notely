@@ -132,7 +132,7 @@ export async function PATCH(
   const document = data as DocumentRow
   const bodyChanged = document.body !== (before as DocumentRow).body
 
-  if (bodyChanged) {
+  {
     const { data: latestVersion, error: versionLookupError } = await supabase
       .from('document_versions')
       .select('version_number,title,body')
