@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
+import { isValidClientNoteId } from '@/lib/note-editor-state.js'
 
 interface NoteRequest {
   id?: unknown
@@ -36,7 +37,7 @@ function parseNoteInput(value: unknown): {
   if (typeof value !== 'object' || value === null) return null
 
   const input = value as NoteRequest
-  const id = typeof input.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.id) ? input.id : null
+  const id = isValidClientNoteId(input.id) ? input.id : null
   if (input.id !== undefined && id === null) return null
   const title = typeof input.title === 'string' ? input.title : ''
   const body = typeof input.body === 'string' ? input.body : ''
