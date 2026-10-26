@@ -486,17 +486,7 @@ export default function NotelyApp() {
           }
 
           if (draftTitle || draftBody) {
-            localWriteRef.current = cloud.id
-            try {
-              const draftRes = await fetch('/api/notes/' + cloud.id, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: draftTitle, body: draftBody, started_at: draftStartedAt }),
-              })
-              if (!draftRes.ok) throw new Error('Failed to save initial draft')
-            } finally {
-              localWriteRef.current = null
-            }
+            await doSave(cloud.id, draftTitle, draftBody, draftStartedAt)
           }
         }
       } catch {
