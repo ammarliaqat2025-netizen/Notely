@@ -16,6 +16,7 @@ interface Note {
   started_at?: string
   history?: NoteVersion[]
   synced?: boolean
+  creationKey?: string
 }
 
 function fmtDate(iso: string) {
@@ -408,13 +409,16 @@ export default function NotelyApp() {
   async function newNote() {
     if (creationInFlightRef.current) return
     creationInFlightRef.current = true
-    const now = new Date().toISOString()
-    const tempId = `temp-${Date.now()}`
+    const retryDraft = notesRef.current.find(note => note.id === activeIdRef.current && note.id.startsWith('temp-') && note.creationKey)
+    const now = retryDraft?.started_at ?? new Date().toISOString()
+    const creationKey = retryDraft?.creationKey ?? crypto.randomUUID()
+    const tempId = retryDraft?.id ?? `temp-${creationKey}`
     const captureTimestamp = Date.now()
     activeIdRef.current = tempId
     startedAtRef.current = now
-    const tempNote: Note = {
+    const tempNote: Note = retryDraft ?? {
       id: tempId,
+      creationKey,
       title: '',
       body: '',
       created_at: now,
@@ -423,20 +427,24 @@ export default function NotelyApp() {
       history: [{ content: '', timestamp: captureTimestamp }],
       synced: false,
     }
-    const updated = [tempNote, ...notesRef.current]
-    setNotes(updated)
-    openNote(tempNote)
-    if (!userRef.current) saveGuest(updated)
-    setTimeout(() => titleRef.current?.focus(), 50)
+    if (!retryDraft) {
+      const updated = [tempNote, ...notesRef.current]
+      notesRef.current = updated
+      setNotes(updated)
+      openNote(tempNote)
+      if (!userRef.current) saveGuest(updated)
+      setTimeout(() => titleRef.current?.focus(), 50)
+    }
 
     if (userRef.current) {
       try {
         const res = await fetch('/api/notes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: '', body: '', started_at: now })
+          body: JSON.stringify({ id: creationKey, title: '', body: '', started_at: now })
         })
-        if (res.ok) {
+        if (!res.ok) throw new Error('Failed to create note')
+        {
           const cloud: Note = await res.json()
           const draftTitle = activeDraftRef.current.title
           const draftBody = activeDraftRef.current.body
