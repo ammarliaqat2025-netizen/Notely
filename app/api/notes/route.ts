@@ -22,6 +22,7 @@ interface DocumentRow {
 interface VersionRow {
   document_id: string
   version_number: number
+  title: string
   body: string
   created_at: string
 }
@@ -84,7 +85,7 @@ export async function GET() {
 
   const { data: versions, error: versionsError } = await supabase
     .from('document_versions')
-    .select('document_id,version_number,body,created_at')
+    .select('document_id,version_number,title,body,created_at')
     .in('document_id', rows.map(row => row.id))
     .order('version_number', { ascending: true })
 
@@ -146,7 +147,6 @@ export async function POST(request: Request) {
   }
 
   let document: DocumentRow | null = null
-  let created = false
 
   if (parsed.id) {
     const { data: existing, error: existingError } = await supabase
@@ -199,7 +199,6 @@ export async function POST(request: Request) {
       }
     } else {
       document = data as DocumentRow
-      created = true
     }
   }
 
