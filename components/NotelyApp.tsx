@@ -261,6 +261,7 @@ export default function NotelyApp() {
   const notesRef = useRef<Note[]>([])
   const localWriteRef = useRef<string | null>(null)
   const saveSequenceRef = useRef(0)
+  const saveQueueRef = useRef<Map<string, Promise<void>>>(new Map())
   const activeDraftRef = useRef({ title: '', body: '' })
   const creationInFlightRef = useRef(false)
   const dirtyFieldsRef = useRef({ title: false, body: false })
@@ -504,31 +505,56 @@ export default function NotelyApp() {
     const now = new Date().toISOString()
 
     if (userRef.current) {
-      localWriteRef.current = id
-      const response = await fetch('/api/notes/' + id, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: t, body: b, started_at: sa })
+      const previousSave = saveQueueRef.current.get(id) ?? Promise.resolve()
+      const queuedSave = previousSave.catch(() => undefined).then(async () => {
+        localWriteRef.current = id
+        try {
+          const response = await fetch('/api/notes/' + id, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: t, body: b, started_at: sa })
+          })
+          if (!response.ok) throw new Error('Note save failed')
+        } finally {
+          if (localWriteRef.current === id) localWriteRef.current = null
+        }
       })
-      localWriteRef.current = null
-      if (sequence !== saveSequenceRef.current || activeIdRef.current !== id) return
-      if (!response.ok) {
-        setSaveStatus('error')
+      saveQueueRef.current.set(id, queuedSave)
+
+      try {
+        await queuedSave
+      } catch {
+        if (sequence === saveSequenceRef.current && activeIdRef.current === id) setSaveStatus('error')
         return
+      } finally {
+        if (saveQueueRef.current.get(id) === queuedSave) saveQueueRef.current.delete(id)
       }
+
+      if (sequence !== saveSequenceRef.current || activeIdRef.current !== id) return
     }
 
+    const currentDraft = activeIdRef.current === id ? activeDraftRef.current : { title: t, body: b }
     setNotes(prev => {
       const updated = prev.map(n =>
         n.id === id
-          ? { ...n, title: t, body: b, started_at: sa ?? undefined, updated_at: now, synced: Boolean(userRef.current) }
+          ? {
+              ...n,
+              title: currentDraft.title,
+              body: currentDraft.body,
+              started_at: sa ?? undefined,
+              updated_at: now,
+              synced: Boolean(userRef.current),
+            }
           : n
       )
+      notesRef.current = updated
       if (!userRef.current) saveGuest(updated)
       return updated
     })
-    setSaveStatus('saved')
-    dirtyFieldsRef.current = { title: false, body: false }
+
+    if (activeDraftRef.current.title === t) dirtyFieldsRef.current.title = false
+    if (activeDraftRef.current.body === b) dirtyFieldsRef.current.body = false
+    if (activeDraftRef.current.title === t && activeDraftRef.current.body === b) setSaveStatus('saved')
   }, [])
 
   function scheduleSave(t: string, b: string, sa: string | null) {
