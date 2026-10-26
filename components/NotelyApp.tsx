@@ -552,6 +552,8 @@ export default function NotelyApp() {
       return updated
     })
 
+    if (sequence !== saveSequenceRef.current || activeIdRef.current !== id) return
+
     if (activeDraftRef.current.title === t) dirtyFieldsRef.current.title = false
     if (activeDraftRef.current.body === b) dirtyFieldsRef.current.body = false
     if (activeDraftRef.current.title === t && activeDraftRef.current.body === b) setSaveStatus('saved')
