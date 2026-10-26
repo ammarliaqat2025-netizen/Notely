@@ -1,7 +1,14 @@
 export const runtime = 'nodejs'
 export const dynamic = 'force-static'
+
 export async function GET(request: Request): Promise<Response> {
-  const origin = new URL(request.url).origin
+  // Static generation receives localhost:3000 as the build-time request origin.
+  // Prefer the environment-specific canonical site URL so OAuth discovery never
+  // publishes localhost endpoints in production or preview deployments.
+  const origin = process.env.NEXT_PUBLIC_SITE_URL
+    ? new URL(process.env.NEXT_PUBLIC_SITE_URL).origin
+    : new URL(request.url).origin
+
   return Response.json({
     issuer: origin,
     authorization_endpoint: origin + '/api/oauth/authorize',
