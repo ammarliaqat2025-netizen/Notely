@@ -448,29 +448,43 @@ export default function NotelyApp() {
         if (!res.ok) throw new Error('Failed to create note')
         {
           const cloud: Note = await res.json()
-          const draftTitle = activeDraftRef.current.title
-          const draftBody = activeDraftRef.current.body
-          const draftStartedAt = startedAtRef.current ?? cloud.started_at ?? now
+          const currentDraft = notesRef.current.find(note => note.id === tempId) ?? tempNote
+          const draftTitle = activeIdRef.current === tempId
+            ? activeDraftRef.current.title
+            : currentDraft.title
+          const draftBody = activeIdRef.current === tempId
+            ? activeDraftRef.current.body
+            : currentDraft.body
+          const draftStartedAt = currentDraft.started_at ?? cloud.started_at ?? now
+          const stillActive = activeIdRef.current === tempId
 
-          setNotes(prev => prev.map(n =>
-            n.id === tempId
-              ? { ...cloud, title: draftTitle, body: draftBody, started_at: draftStartedAt, history: tempNote.history, synced: true }
-              : n
-          ))
-          activeIdRef.current = cloud.id
-          startedAtRef.current = draftStartedAt
-          setActiveId(cloud.id)
-          setStartedAt(draftStartedAt)
+          const mappedNotes = notesRef.current.map(note =>
+            note.id === tempId
+              ? { ...cloud, title: draftTitle, body: draftBody, started_at: draftStartedAt, history: currentDraft.history, synced: true }
+              : note
+          )
+          notesRef.current = mappedNotes
+          setNotes(mappedNotes)
+
+          if (stillActive) {
+            activeIdRef.current = cloud.id
+            startedAtRef.current = draftStartedAt
+            setActiveId(cloud.id)
+            setStartedAt(draftStartedAt)
+          }
 
           if (draftTitle || draftBody) {
             localWriteRef.current = cloud.id
-            const draftRes = await fetch('/api/notes/' + cloud.id, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ title: draftTitle, body: draftBody, started_at: draftStartedAt }),
-            })
-            localWriteRef.current = null
-            if (!draftRes.ok) setSaveStatus('error')
+            try {
+              const draftRes = await fetch('/api/notes/' + cloud.id, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: draftTitle, body: draftBody, started_at: draftStartedAt }),
+              })
+              if (!draftRes.ok) throw new Error('Failed to save initial draft')
+            } finally {
+              localWriteRef.current = null
+            }
           }
         }
       } catch {
@@ -546,6 +560,12 @@ export default function NotelyApp() {
     setTitle(v)
     dirtyFieldsRef.current.title = true
     activeDraftRef.current.title = v
+    const currentId = activeIdRef.current
+    if (currentId) {
+      const updated = notesRef.current.map(note => note.id === currentId ? { ...note, title: v } : note)
+      notesRef.current = updated
+      setNotes(updated)
+    }
     scheduleSave(v, activeDraftRef.current.body, sa)
   }
 
@@ -559,6 +579,12 @@ export default function NotelyApp() {
     setBody(v)
     dirtyFieldsRef.current.body = true
     activeDraftRef.current.body = v
+    const currentId = activeIdRef.current
+    if (currentId) {
+      const updated = notesRef.current.map(note => note.id === currentId ? { ...note, body: v } : note)
+      notesRef.current = updated
+      setNotes(updated)
+    }
     setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0)
     scheduleSave(activeDraftRef.current.title, v, sa)
     addToHistory(v)
