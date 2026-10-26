@@ -334,9 +334,11 @@ export default function NotelyApp() {
 
           setNotes(prev => {
             const exists = prev.some(note => note.id === row.id)
-            return exists
+            const updated = exists
               ? prev.map(note => note.id === row.id ? { ...note, ...incoming, synced: true } : note)
               : [incoming, ...prev]
+            notesRef.current = updated
+            return updated
           })
 
           if (activeIdRef.current === row.id && !dirtyFieldsRef.current.title && !dirtyFieldsRef.current.body && saveStatus !== 'saving') {
@@ -459,13 +461,21 @@ export default function NotelyApp() {
           const draftStartedAt = currentDraft.started_at ?? cloud.started_at ?? now
           const stillActive = activeIdRef.current === tempId
 
-          const mappedNotes = notesRef.current.map(note =>
-            note.id === tempId
-              ? { ...cloud, title: draftTitle, body: draftBody, started_at: draftStartedAt, history: currentDraft.history, synced: true }
-              : note
-          )
-          notesRef.current = mappedNotes
-          setNotes(mappedNotes)
+          const resolvedNote: Note = {
+            ...cloud,
+            title: draftTitle,
+            body: draftBody,
+            started_at: draftStartedAt,
+            history: currentDraft.history,
+            synced: true,
+          }
+          setNotes(prev => {
+            // The realtime INSERT may arrive before the POST response. Replace the
+            // optimistic draft and deduplicate the same server note by its real ID.
+            const updated = [resolvedNote, ...prev.filter(note => note.id !== tempId && note.id !== cloud.id)]
+            notesRef.current = updated
+            return updated
+          })
 
           if (stillActive) {
             activeIdRef.current = cloud.id
