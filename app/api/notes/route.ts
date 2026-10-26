@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
 
 interface NoteRequest {
+  id?: unknown
   title?: unknown
   body?: unknown
   started_at?: unknown
@@ -26,6 +27,7 @@ interface VersionRow {
 }
 
 function parseNoteInput(value: unknown): {
+  id: string | null
   title: string
   body: string
   startedAt: string | null
@@ -33,6 +35,8 @@ function parseNoteInput(value: unknown): {
   if (typeof value !== 'object' || value === null) return null
 
   const input = value as NoteRequest
+  const id = typeof input.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.id) ? input.id : null
+  if (input.id !== undefined && id === null) return null
   const title = typeof input.title === 'string' ? input.title : ''
   const body = typeof input.body === 'string' ? input.body : ''
   const startedAt =
@@ -42,7 +46,7 @@ function parseNoteInput(value: unknown): {
         ? input.started_at
         : null
 
-  return { title, body, startedAt }
+  return { id, title, body, startedAt }
 }
 
 function toHistory(versions: VersionRow[]): { content: string; timestamp: number }[] {
@@ -141,34 +145,90 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid note payload' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
-    .from('documents')
-    .insert({
+  let document: DocumentRow | null = null
+  let created = false
+
+  if (parsed.id) {
+    const { data: existing, error: existingError } = await supabase
+      .from('documents')
+      .select('id,user_id,title,body,started_at,status,created_at,updated_at')
+      .eq('id', parsed.id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (existingError) {
+      console.error('Failed to check note idempotency:', existingError)
+      return NextResponse.json({ error: 'Failed to create note' }, { status: 500 })
+    }
+
+    if (existing) document = existing as DocumentRow
+  }
+
+  if (!document) {
+    const insert = {
+      ...(parsed.id ? { id: parsed.id } : {}),
       user_id: user.id,
       title: parsed.title,
       body: parsed.body,
       started_at: parsed.startedAt,
-    })
-    .select('id,user_id,title,body,started_at,status,created_at,updated_at')
-    .single()
+    }
+    const { data, error } = await supabase
+      .from('documents')
+      .insert(insert)
+      .select('id,user_id,title,body,started_at,status,created_at,updated_at')
+      .single()
 
-  if (error || !data) {
-    console.error('Failed to create note:', error)
-    return NextResponse.json({ error: 'Failed to create note' }, { status: 500 })
+    if (error || !data) {
+      // A concurrent retry can win the same client-generated primary key.
+      if (parsed.id) {
+        const { data: existing, error: lookupError } = await supabase
+          .from('documents')
+          .select('id,user_id,title,body,started_at,status,created_at,updated_at')
+          .eq('id', parsed.id)
+          .eq('user_id', user.id)
+          .maybeSingle()
+        if (!lookupError && existing) {
+          document = existing as DocumentRow
+        } else {
+          console.error('Failed to create note:', error)
+          return NextResponse.json({ error: 'Failed to create note' }, { status: 500 })
+        }
+      } else {
+        console.error('Failed to create note:', error)
+        return NextResponse.json({ error: 'Failed to create note' }, { status: 500 })
+      }
+    } else {
+      document = data as DocumentRow
+      created = true
+    }
   }
 
-  const document = data as DocumentRow
-  const { error: versionError } = await supabase
+  const { data: initialVersion, error: versionLookupError } = await supabase
     .from('document_versions')
-    .insert({
-      document_id: document.id,
-      version_number: 1,
-      title: document.title,
-      body: document.body,
-    })
+    .select('id')
+    .eq('document_id', document.id)
+    .eq('version_number', 1)
+    .maybeSingle()
 
-  if (versionError) {
-    console.error('Failed to create initial note version:', versionError)
+  if (versionLookupError) {
+    console.error('Failed to verify initial note version:', versionLookupError)
+    return NextResponse.json({ error: 'Note created but initial version could not be verified' }, { status: 500 })
+  }
+
+  if (!initialVersion) {
+    const { error: versionError } = await supabase
+      .from('document_versions')
+      .insert({
+        document_id: document.id,
+        version_number: 1,
+        title: document.title,
+        body: document.body,
+      })
+
+    if (versionError) {
+      console.error('Failed to create initial note version:', versionError)
+      return NextResponse.json({ error: 'Note created but initial version could not be saved' }, { status: 500 })
+    }
   }
 
   return NextResponse.json({
