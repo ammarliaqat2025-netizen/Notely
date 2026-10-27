@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import type { User } from '@supabase/supabase-js'
-import { mergeCreatedNote, shouldApplyRemoteNote } from '@/lib/note-editor-state.js'
+import { mergeCreatedNote, shouldApplyRemoteNote, shouldStartCreation } from '@/lib/note-editor-state.js'
 
 interface NoteVersion { content: string; timestamp: number }
 
@@ -422,7 +422,7 @@ export default function NotelyApp() {
 
   // ── INSTANT NEW NOTE ──
   async function newNote() {
-    if (creationInFlightRef.current) return
+    if (!shouldStartCreation(creationInFlightRef.current)) return
     creationInFlightRef.current = true
     const retryDraft = userRef.current && saveStatus === 'error'
       ? notesRef.current.find(note => note.id === activeIdRef.current && note.id.startsWith('temp-') && note.creationKey)
