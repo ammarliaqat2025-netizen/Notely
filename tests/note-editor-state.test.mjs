@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { isValidClientNoteId, mergeCreatedNote, shouldApplyRemoteNote } from '../lib/note-editor-state.js'
+import { isValidClientNoteId, mergeCreatedNote, shouldApplyRemoteNote, shouldStartCreation, versionNeedsPersist } from '../lib/note-editor-state.js'
 
 test('creation response merges optimistic draft and realtime INSERT into one note', () => {
   const optimistic = { id: 'temp-key', title: 'Draft' }
@@ -30,4 +30,22 @@ test('client creation id accepts UUIDs and rejects malformed keys', () => {
   assert.equal(isValidClientNoteId('2b2efaf0-1a23-4c56-8def-123456789abc'), true)
   assert.equal(isValidClientNoteId('../../other-user-note'), false)
   assert.equal(isValidClientNoteId(null), false)
+})
+
+test('a pending create action blocks a second creation request', () => {
+  assert.equal(shouldStartCreation(false), true)
+  assert.equal(shouldStartCreation(true), false)
+})
+
+test('a separate create action is allowed after the prior request finishes', () => {
+  assert.equal(shouldStartCreation(false), true)
+})
+
+test('version persistence detects title-only edits', () => {
+  assert.equal(versionNeedsPersist({ title: 'Old', body: 'same' }, { title: 'New', body: 'same' }), true)
+})
+
+test('version persistence detects body edits but skips unchanged documents', () => {
+  assert.equal(versionNeedsPersist({ title: 'Same', body: 'Old' }, { title: 'Same', body: 'New' }), true)
+  assert.equal(versionNeedsPersist({ title: 'Same', body: 'Same' }, { title: 'Same', body: 'Same' }), false)
 })
