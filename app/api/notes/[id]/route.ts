@@ -146,7 +146,7 @@ export async function PATCH(
 
     const latest = latestVersion as { version_number: number; title: string; body: string } | null
     // Recover a version write that failed after the document update succeeded.
-    if (latest?.body !== document.body) {
+    if (latest?.body !== document.body || latest?.title !== document.title) {
       const nextVersion = (latest?.version_number ?? 0) + 1
       const { error: versionError } = await supabase
         .from('document_versions')
