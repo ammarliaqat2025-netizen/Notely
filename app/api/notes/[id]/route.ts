@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
+import { versionNeedsPersist } from '@/lib/note-editor-state.js'
 
 interface NoteUpdateRequest {
   title?: unknown
@@ -146,7 +147,7 @@ export async function PATCH(
 
     const latest = latestVersion as { version_number: number; title: string; body: string } | null
     // Recover a version write that failed after the document update succeeded.
-    if (latest?.body !== document.body || latest?.title !== document.title) {
+    if (versionNeedsPersist(latest, document)) {
       const nextVersion = (latest?.version_number ?? 0) + 1
       const { error: versionError } = await supabase
         .from('document_versions')
