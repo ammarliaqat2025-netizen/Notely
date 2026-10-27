@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
+import { versionNeedsPersist } from '@/lib/note-editor-state.js'
 
 interface NoteUpdateRequest {
   title?: unknown
@@ -19,6 +20,7 @@ interface DocumentRow {
 
 interface VersionRow {
   version_number: number
+  title: string
   body: string
   created_at: string
 }
@@ -129,38 +131,43 @@ export async function PATCH(
   }
 
   const document = data as DocumentRow
-  const bodyChanged = document.body !== (before as DocumentRow).body
-
-  if (bodyChanged) {
+  {
     const { data: latestVersion, error: versionLookupError } = await supabase
       .from('document_versions')
-      .select('version_number')
+      .select('version_number,title,body')
       .eq('document_id', document.id)
       .order('version_number', { ascending: false })
       .limit(1)
       .maybeSingle()
 
-    if (!versionLookupError) {
-      const nextVersion = ((latestVersion as { version_number: number } | null)?.version_number ?? 0) + 1
+    if (versionLookupError) {
+      console.error('Failed to read note version sequence:', versionLookupError)
+      return NextResponse.json({ error: 'Note saved but version history could not be verified' }, { status: 500 })
+    }
+
+    const latest = latestVersion as { version_number: number; title: string; body: string } | null
+    // Recover a version write that failed after the document update succeeded.
+    if (versionNeedsPersist(latest, document)) {
+      const nextVersion = (latest?.version_number ?? 0) + 1
       const { error: versionError } = await supabase
         .from('document_versions')
         .insert({
           document_id: document.id,
           version_number: nextVersion,
+          title: document.title,
           body: document.body,
         })
 
       if (versionError) {
         console.error('Failed to persist note version:', versionError)
+        return NextResponse.json({ error: 'Note saved but version history could not be persisted' }, { status: 500 })
       }
-    } else {
-      console.error('Failed to read note version sequence:', versionLookupError)
     }
   }
 
   const { data: versions } = await supabase
     .from('document_versions')
-    .select('version_number,body,created_at')
+    .select('version_number,title,body,created_at')
     .eq('document_id', document.id)
     .order('version_number', { ascending: true })
 

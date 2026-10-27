@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import type { User } from '@supabase/supabase-js'
+import { mergeCreatedNote, shouldApplyRemoteNote, shouldStartCreation } from '@/lib/note-editor-state.js'
 
 interface NoteVersion { content: string; timestamp: number }
 
@@ -16,6 +17,7 @@ interface Note {
   started_at?: string
   history?: NoteVersion[]
   synced?: boolean
+  creationKey?: string
 }
 
 function fmtDate(iso: string) {
@@ -260,7 +262,10 @@ export default function NotelyApp() {
   const notesRef = useRef<Note[]>([])
   const localWriteRef = useRef<string | null>(null)
   const saveSequenceRef = useRef(0)
+  const saveQueueRef = useRef<Map<string, Promise<void>>>(new Map())
   const activeDraftRef = useRef({ title: '', body: '' })
+  const creationInFlightRef = useRef(false)
+  const dirtyFieldsRef = useRef({ title: false, body: false })
 
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
   useEffect(() => { userRef.current = user }, [user])
@@ -330,12 +335,14 @@ export default function NotelyApp() {
 
           setNotes(prev => {
             const exists = prev.some(note => note.id === row.id)
-            return exists
+            const updated = exists
               ? prev.map(note => note.id === row.id ? { ...note, ...incoming, synced: true } : note)
               : [incoming, ...prev]
+            notesRef.current = updated
+            return updated
           })
 
-          if (activeIdRef.current === row.id) {
+          if (shouldApplyRemoteNote(activeIdRef.current, row.id, dirtyFieldsRef.current)) {
             setActiveId(row.id)
             activeIdRef.current = row.id
             setTitle(incoming.title)
@@ -377,7 +384,22 @@ export default function NotelyApp() {
     else clearEditor()
   }
 
-  function openNote(note: Note) {
+  function openNote(note: Note, flushPending = true) {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current)
+      saveTimer.current = null
+      if (flushPending) {
+        const pendingId = activeIdRef.current
+        if (pendingId && !pendingId.startsWith('temp-')) {
+          void doSave(pendingId, activeDraftRef.current.title, activeDraftRef.current.body, startedAtRef.current)
+        } else if (!userRef.current) {
+          saveGuest(notesRef.current)
+        }
+      }
+    }
+    if (historyTimer.current) { clearTimeout(historyTimer.current); historyTimer.current = null }
+    saveSequenceRef.current++
+    dirtyFieldsRef.current = { title: false, body: false }
     activeIdRef.current = note.id
     startedAtRef.current = note.started_at || null
     setActiveId(note.id)
@@ -400,13 +422,20 @@ export default function NotelyApp() {
 
   // ── INSTANT NEW NOTE ──
   async function newNote() {
-    const now = new Date().toISOString()
-    const tempId = `temp-${Date.now()}`
+    if (!shouldStartCreation(creationInFlightRef.current)) return
+    creationInFlightRef.current = true
+    const retryDraft = userRef.current && saveStatus === 'error'
+      ? notesRef.current.find(note => note.id === activeIdRef.current && note.id.startsWith('temp-') && note.creationKey)
+      : undefined
+    const now = retryDraft?.started_at ?? new Date().toISOString()
+    const creationKey = retryDraft?.creationKey ?? crypto.randomUUID()
+    const tempId = retryDraft?.id ?? `temp-${creationKey}`
     const captureTimestamp = Date.now()
     activeIdRef.current = tempId
     startedAtRef.current = now
-    const tempNote: Note = {
+    const tempNote: Note = retryDraft ?? {
       id: tempId,
+      creationKey,
       title: '',
       body: '',
       created_at: now,
@@ -415,90 +444,139 @@ export default function NotelyApp() {
       history: [{ content: '', timestamp: captureTimestamp }],
       synced: false,
     }
-    const updated = [tempNote, ...notesRef.current]
-    setNotes(updated)
-    openNote(tempNote)
-    if (!userRef.current) saveGuest(updated)
-    setTimeout(() => titleRef.current?.focus(), 50)
+    if (!retryDraft) {
+      const updated = [tempNote, ...notesRef.current]
+      notesRef.current = updated
+      setNotes(updated)
+      openNote(tempNote)
+      if (!userRef.current) saveGuest(updated)
+      setTimeout(() => titleRef.current?.focus(), 50)
+    }
 
     if (userRef.current) {
       try {
         const res = await fetch('/api/notes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: '', body: '', started_at: now })
+          body: JSON.stringify({ id: creationKey, title: '', body: '', started_at: now })
         })
-        if (res.ok) {
+        if (!res.ok) throw new Error('Failed to create note')
+        {
           const cloud: Note = await res.json()
-          const draftTitle = activeDraftRef.current.title
-          const draftBody = activeDraftRef.current.body
-          const draftStartedAt = startedAtRef.current ?? cloud.started_at ?? now
+          const currentDraft = notesRef.current.find(note => note.id === tempId) ?? tempNote
+          const draftTitle = activeIdRef.current === tempId
+            ? activeDraftRef.current.title
+            : currentDraft.title
+          const draftBody = activeIdRef.current === tempId
+            ? activeDraftRef.current.body
+            : currentDraft.body
+          const draftStartedAt = currentDraft.started_at ?? cloud.started_at ?? now
+          const stillActive = activeIdRef.current === tempId
 
-          setNotes(prev => prev.map(n =>
-            n.id === tempId
-              ? { ...cloud, title: draftTitle, body: draftBody, started_at: draftStartedAt, history: tempNote.history, synced: true }
-              : n
-          ))
-          activeIdRef.current = cloud.id
-          startedAtRef.current = draftStartedAt
-          setActiveId(cloud.id)
-          setStartedAt(draftStartedAt)
+          const resolvedNote: Note = {
+            ...cloud,
+            title: draftTitle,
+            body: draftBody,
+            started_at: draftStartedAt,
+            history: currentDraft.history,
+            synced: true,
+          }
+          setNotes(prev => {
+            // The realtime INSERT may arrive before the POST response. Replace the
+            // optimistic draft and deduplicate the same server note by its real ID.
+            const updated = mergeCreatedNote(prev, tempId, resolvedNote)
+            notesRef.current = updated
+            return updated
+          })
+
+          if (stillActive) {
+            activeIdRef.current = cloud.id
+            startedAtRef.current = draftStartedAt
+            setActiveId(cloud.id)
+            setStartedAt(draftStartedAt)
+          }
 
           if (draftTitle || draftBody) {
-            localWriteRef.current = cloud.id
-            const draftRes = await fetch('/api/notes/' + cloud.id, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ title: draftTitle, body: draftBody, started_at: draftStartedAt }),
-            })
-            localWriteRef.current = null
-            if (!draftRes.ok) setSaveStatus('error')
+            await doSave(cloud.id, draftTitle, draftBody, draftStartedAt)
           }
         }
       } catch {
         setSaveStatus('error')
+      } finally {
+        creationInFlightRef.current = false
       }
+    } else {
+      creationInFlightRef.current = false
     }
   }
 
-  const doSave = useCallback(async (t: string, b: string, sa: string | null) => {
-    const id = activeIdRef.current
+  const doSave = useCallback(async (id: string, t: string, b: string, sa: string | null) => {
     if (!id || id.startsWith('temp-')) return
 
     const sequence = ++saveSequenceRef.current
     const now = new Date().toISOString()
 
     if (userRef.current) {
-      localWriteRef.current = id
-      const response = await fetch('/api/notes/' + id, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: t, body: b, started_at: sa })
+      const previousSave = saveQueueRef.current.get(id) ?? Promise.resolve()
+      const queuedSave = previousSave.catch(() => undefined).then(async () => {
+        localWriteRef.current = id
+        try {
+          const response = await fetch('/api/notes/' + id, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: t, body: b, started_at: sa })
+          })
+          if (!response.ok) throw new Error('Note save failed')
+        } finally {
+          if (localWriteRef.current === id) localWriteRef.current = null
+        }
       })
-      localWriteRef.current = null
-      if (sequence !== saveSequenceRef.current) return
-      if (!response.ok) {
-        setSaveStatus('error')
+      saveQueueRef.current.set(id, queuedSave)
+
+      try {
+        await queuedSave
+      } catch {
+        if (sequence === saveSequenceRef.current && activeIdRef.current === id) setSaveStatus('error')
         return
+      } finally {
+        if (saveQueueRef.current.get(id) === queuedSave) saveQueueRef.current.delete(id)
       }
+
+      if (sequence !== saveSequenceRef.current || activeIdRef.current !== id) return
     }
 
+    const currentDraft = activeIdRef.current === id ? activeDraftRef.current : { title: t, body: b }
     setNotes(prev => {
       const updated = prev.map(n =>
         n.id === id
-          ? { ...n, title: t, body: b, started_at: sa ?? undefined, updated_at: now, synced: Boolean(userRef.current) }
+          ? {
+              ...n,
+              title: currentDraft.title,
+              body: currentDraft.body,
+              started_at: sa ?? undefined,
+              updated_at: now,
+              synced: Boolean(userRef.current),
+            }
           : n
       )
+      notesRef.current = updated
       if (!userRef.current) saveGuest(updated)
       return updated
     })
-    setSaveStatus('saved')
+
+    if (sequence !== saveSequenceRef.current || activeIdRef.current !== id) return
+
+    if (activeDraftRef.current.title === t) dirtyFieldsRef.current.title = false
+    if (activeDraftRef.current.body === b) dirtyFieldsRef.current.body = false
+    if (activeDraftRef.current.title === t && activeDraftRef.current.body === b) setSaveStatus('saved')
   }, [])
 
   function scheduleSave(t: string, b: string, sa: string | null) {
+    const id = activeIdRef.current
+    if (!id) return
     setSaveStatus('saving')
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => { void doSave(t, b, sa) }, 300)
+    saveTimer.current = setTimeout(() => { void doSave(id, t, b, sa) }, 300)
   }
 
   function addToHistory(b: string) {
@@ -520,7 +598,14 @@ export default function NotelyApp() {
       setStartedAt(sa)
     }
     setTitle(v)
+    dirtyFieldsRef.current.title = true
     activeDraftRef.current.title = v
+    const currentId = activeIdRef.current
+    if (currentId) {
+      const updated = notesRef.current.map(note => note.id === currentId ? { ...note, title: v } : note)
+      notesRef.current = updated
+      setNotes(updated)
+    }
     scheduleSave(v, activeDraftRef.current.body, sa)
   }
 
@@ -532,7 +617,14 @@ export default function NotelyApp() {
       setStartedAt(sa)
     }
     setBody(v)
+    dirtyFieldsRef.current.body = true
     activeDraftRef.current.body = v
+    const currentId = activeIdRef.current
+    if (currentId) {
+      const updated = notesRef.current.map(note => note.id === currentId ? { ...note, body: v } : note)
+      notesRef.current = updated
+      setNotes(updated)
+    }
     setWordCount(v.trim() ? v.trim().split(/\s+/).length : 0)
     scheduleSave(activeDraftRef.current.title, v, sa)
     addToHistory(v)
@@ -574,7 +666,7 @@ export default function NotelyApp() {
     if (!userRef.current) saveGuest(updated)
 
     if (wasActive) {
-      if (updated.length > 0) openNote(updated[0])
+      if (updated.length > 0) openNote(updated[0], false)
       else {
         clearEditor()
         setMobileView('list')
@@ -602,6 +694,7 @@ export default function NotelyApp() {
 
       if (wasActive && activeIdRef.current !== id) {
         openNote(deletedNote)
+        if (userRef.current) scheduleSave(deletedNote.title, deletedNote.body, deletedNote.started_at ?? null)
       }
     }
   }, [])
@@ -690,7 +783,12 @@ export default function NotelyApp() {
         ) : (
           <>
             <button className="mobile-back-btn" onClick={() => {
-              if (saveTimer.current) { clearTimeout(saveTimer.current); doSave(title, body, startedAt) }
+              if (saveTimer.current) {
+                clearTimeout(saveTimer.current)
+                saveTimer.current = null
+                const id = activeIdRef.current
+                if (id) void doSave(id, title, body, startedAt)
+              }
               setMobileView('list')
             }}>
               <svg width="17" height="17" viewBox="0 0 17 17" fill="none">
