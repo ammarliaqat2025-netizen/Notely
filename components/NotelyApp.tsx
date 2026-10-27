@@ -384,15 +384,17 @@ export default function NotelyApp() {
     else clearEditor()
   }
 
-  function openNote(note: Note) {
+  function openNote(note: Note, flushPending = true) {
     if (saveTimer.current) {
       clearTimeout(saveTimer.current)
       saveTimer.current = null
-      const pendingId = activeIdRef.current
-      if (pendingId && !pendingId.startsWith('temp-')) {
-        void doSave(pendingId, activeDraftRef.current.title, activeDraftRef.current.body, startedAtRef.current)
-      } else if (!userRef.current) {
-        saveGuest(notesRef.current)
+      if (flushPending) {
+        const pendingId = activeIdRef.current
+        if (pendingId && !pendingId.startsWith('temp-')) {
+          void doSave(pendingId, activeDraftRef.current.title, activeDraftRef.current.body, startedAtRef.current)
+        } else if (!userRef.current) {
+          saveGuest(notesRef.current)
+        }
       }
     }
     if (historyTimer.current) { clearTimeout(historyTimer.current); historyTimer.current = null }
@@ -664,7 +666,7 @@ export default function NotelyApp() {
     if (!userRef.current) saveGuest(updated)
 
     if (wasActive) {
-      if (updated.length > 0) openNote(updated[0])
+      if (updated.length > 0) openNote(updated[0], false)
       else {
         clearEditor()
         setMobileView('list')
@@ -692,6 +694,7 @@ export default function NotelyApp() {
 
       if (wasActive && activeIdRef.current !== id) {
         openNote(deletedNote)
+        if (userRef.current) scheduleSave(deletedNote.title, deletedNote.body, deletedNote.started_at ?? null)
       }
     }
   }, [])
