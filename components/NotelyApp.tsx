@@ -385,7 +385,16 @@ export default function NotelyApp() {
   }
 
   function openNote(note: Note) {
-    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current)
+      saveTimer.current = null
+      const pendingId = activeIdRef.current
+      if (pendingId && !pendingId.startsWith('temp-')) {
+        void doSave(pendingId, activeDraftRef.current.title, activeDraftRef.current.body, startedAtRef.current)
+      } else if (!userRef.current) {
+        saveGuest(notesRef.current)
+      }
+    }
     if (historyTimer.current) { clearTimeout(historyTimer.current); historyTimer.current = null }
     saveSequenceRef.current++
     dirtyFieldsRef.current = { title: false, body: false }
